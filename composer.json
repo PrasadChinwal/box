@@ -1,0 +1,54 @@
+{
+    "name": "prasadchinwal/box",
+    "description": "A wrapper for integrating with BOX APIs.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "prasadchinwal",
+            "email": "prasadchinwal5@gmail.com"
+        }
+    ],
+    "require": {
+        "php": "^8.1",
+        "guzzlehttp/guzzle": "^7.7",
+        "illuminate/support": "^9.0",
+        "firebase/php-jwt": "^6.8"
+    },
+    "require-dev": {
+        "laravel/pint": "^1.10",
+        "pestphp/pest": "^1.23",
+        "pestphp/pest-plugin-laravel": "^1.0",
+        "mockery/mockery": "^1.6",
+        "orchestra/testbench": "^7.25"
+    },
+    "autoload": {
+        "psr-4": {
+            "PrasadChinwal\\Box\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "PrasadChinwal\\Box\\Test\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "PrasadChinwal\\Box\\BoxServiceProvider"
+            ],
+            "aliases": {
+                "BoxFile": "PrasadChinwal\\Box\\Facades\\BoxFile",
+                "BoxFolder": "PrasadChinwal\\Box\\Facades\\BoxFolder",
+                "BoxUser": "PrasadChinwal\\Box\\Facades\\BoxUser",
+                "BoxCollaboration": "PrasadChinwal\\Box\\Facades\\BoxCollaboration"
+            }
+        }
+    },
+    "minimum-stability": "stable",
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    }
+}
