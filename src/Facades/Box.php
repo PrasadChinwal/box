@@ -4,13 +4,10 @@ namespace PrasadChinwal\Box\Facades;
 
 use Illuminate\Support\Facades\Facade;
 
-class BoxCollaboration extends Facade
+class Box extends Facade
 {
-    /**
-     * @return string
-     */
     protected static function getFacadeAccessor(): string
     {
-        return 'box-collaboration';
+        return 'box';
     }
 }

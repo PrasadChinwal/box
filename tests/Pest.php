@@ -11,6 +11,7 @@
 |
 */
 use PrasadChinwal\Box\Test\TestCase;
+
 uses(TestCase::class)->in(__DIR__);
 
 /*

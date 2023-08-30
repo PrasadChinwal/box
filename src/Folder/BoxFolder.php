@@ -12,7 +12,7 @@ use PrasadChinwal\Box\Traits\CanCollaborate;
 use PrasadChinwal\Box\Traits\CanShare;
 use PrasadChinwal\Box\Traits\HasLock;
 
-class BoxFolder implements FolderContract
+class BoxFolder extends Box implements FolderContract
 {
     use CanCollaborate;
     use HasLock;
@@ -28,115 +28,95 @@ class BoxFolder implements FolderContract
 
     protected Collection $result;
 
-    protected Box $box;
-
     /**
      * @throws Exception
      */
-    public function __construct(Box $box)
+    public function whereId($id): static
     {
-        $this->box = $box;
+        $this->id = $id;
+
+        return $this;
     }
 
     /**
-     * @throws Exception
-     */
-    public static function whereId($id): static
-    {
-        $instance = new static(new Box());
-        $instance->id = $id;
-        return $instance;
-    }
-
-    /**
+     * @see https://developer.box.com/reference/get-folders-id/
+     *
      * @throws Exception
      */
     public function info(): Collection
     {
-        return Http::withToken($this->box->getAccessToken())
-            ->get($this->endpoint . $this->id)
+        return Http::withToken($this->getAccessToken())
+            ->get($this->endpoint.$this->id)
             ->throwUnlessStatus(200)
             ->collect();
     }
 
     /**
-     * @return Collection
+     * @see https://developer.box.com/reference/get-folders-id-items/
+     *
      * @throws Exception
      */
     public function items(): Collection
     {
-        return Http::withToken($this->box->getAccessToken())
-            ->get($this->endpoint . $this->id . '/items')
+        return Http::withToken($this->getAccessToken())
+            ->get($this->endpoint.$this->id.'/items')
             ->throwUnlessStatus(200)
             ->collect();
     }
 
     /**
-     * @param array $attributes
-     * @return Collection
+     * @see https://developer.box.com/reference/post-folders/
+     *
      * @throws Exception
      */
     public function create(array $attributes): Collection
     {
         return Http::asJson()
-            ->withToken($this->box->getAccessToken())
-            ->post($this->endpoint . $this->id, $attributes)
+            ->withToken($this->getAccessToken())
+            ->post($this->endpoint.$this->id, $attributes)
             ->throwUnlessStatus(201)
             ->collect();
     }
 
     /**
-     * @param array $attributes
-     * @return Collection
+     * @see https://developer.box.com/reference/post-folders-id-copy/
+     *
      * @throws Exception
      */
     public function copy(array $attributes): Collection
     {
         return Http::asJson()
-            ->withToken($this->box->getAccessToken())
-            ->post($this->endpoint . $this->id, $attributes)
+            ->withToken($this->getAccessToken())
+            ->post($this->endpoint.$this->id, $attributes)
             ->throwUnlessStatus(201)
             ->collect();
     }
 
     /**
-     * @param array $attributes
-     * @return Collection
+     * @see https://developer.box.com/reference/put-folders-id/
+     *
      * @throws Exception
      */
     public function update(array $attributes): Collection
     {
         return Http::asJson()
-            ->withToken($this->box->getAccessToken())
-            ->put($this->endpoint . $this->id, $attributes)
+            ->withToken($this->getAccessToken())
+            ->put($this->endpoint.$this->id, $attributes)
             ->throwUnlessStatus(200)
             ->collect();
     }
 
     /**
-     * @param array $attributes
-     * @return Collection
-     * @throws Exception
-     */
-    public function createSharedLink(array $attributes): Collection
-    {
-        return Http::asForm()
-            ->withToken($this->box->getAccessToken())
-            ->asJson()
-            ->put($this->endpoint . $this->id, $attributes)
-            ->throwUnlessStatus(200)
-            ->collect();
-    }
-
-    /**
+     * @see https://developer.box.com/reference/delete-folders-id/
+     *
      * @throws Exception
      */
     public function delete(bool $recursive = false): Response|Exception
     {
-        Http::withToken($this->box->getAccessToken())
-            ->delete($this->endpoint . $this->id . '?recursive=' . $recursive)
+        Http::withToken($this->getAccessToken())
+            ->delete($this->endpoint.$this->id.'?recursive='.$recursive)
             ->throwUnlessStatus(204);
+
         return new Response('Folder has been deleted successfully');
     }
-
 }

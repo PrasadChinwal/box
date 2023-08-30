@@ -38,10 +38,7 @@
                 "PrasadChinwal\\Box\\BoxServiceProvider"
             ],
             "aliases": {
-                "BoxFile": "PrasadChinwal\\Box\\Facades\\BoxFile",
-                "BoxFolder": "PrasadChinwal\\Box\\Facades\\BoxFolder",
-                "BoxUser": "PrasadChinwal\\Box\\Facades\\BoxUser",
-                "BoxCollaboration": "PrasadChinwal\\Box\\Facades\\BoxCollaboration"
+                "Box": "PrasadChinwal\\Box\\Facades\\Box"
             }
         }
     },

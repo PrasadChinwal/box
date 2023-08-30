@@ -7,6 +7,8 @@ use Firebase\JWT\JWT;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use OpenSSLAsymmetricKey;
+use PrasadChinwal\Box\File\BoxFile;
+use PrasadChinwal\Box\Folder\BoxFolder;
 
 class Box
 {
@@ -15,7 +17,6 @@ class Box
     protected string $accessToken;
 
     /**
-     *
      * @throws Exception
      */
     public function __construct()
@@ -33,16 +34,16 @@ class Box
                 'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
                 'assertion' => $this->getSignedClaims(),
                 'client_id' => config('box.client_id'),
-                'client_secret' => config('box.client_secret')
+                'client_secret' => config('box.client_secret'),
             ])
             ->throwUnlessStatus(200);
 
         $this->setAccessToken($response->collect()->get('access_token'));
+
         return $this;
     }
 
     /**
-     * @return string
      * @throws Exception
      */
     protected function getSignedClaims(): string
@@ -64,7 +65,7 @@ class Box
             'aud' => $this->authenticationUrl,
             'jti' => base64_encode(random_bytes(64)),
             'exp' => time() + 60,
-            'kid' => config('box.public_key_id')
+            'kid' => config('box.public_key_id'),
         ];
     }
 
@@ -75,18 +76,17 @@ class Box
     {
         $password = config('box.passphrase');
 
-        if (!File::exists(config('box.private_key')) || empty($password)) {
+        if (! File::exists(config('box.private_key')) || empty($password)) {
             throw new Exception('Could not find private-key.pem file in the base directory.');
         }
 
         $privateKey = File::get(config('box.private_key'));
+
         return openssl_pkey_get_private($privateKey, $password);
     }
 
     /**
      * Returns accessToken.
-     *
-     * @return string
      */
     public function getAccessToken(): string
     {
@@ -95,12 +95,41 @@ class Box
 
     /**
      * Sets the accessToken.
-     *
-     * @param string $accessToken
-     * @return void
      */
     public function setAccessToken(string $accessToken): void
     {
         $this->accessToken = $accessToken;
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function file(): BoxFile
+    {
+        return new BoxFile();
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function folder(): BoxFolder
+    {
+        return new BoxFolder();
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function user(): BoxUser
+    {
+        return new BoxUser();
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function collaboration(): BoxCollaboration
+    {
+        return new BoxCollaboration();
     }
 }

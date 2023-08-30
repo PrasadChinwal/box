@@ -11,8 +11,8 @@ return [
     |
     */
 
-    'client_id'     	=> env('BOX_CLIENT_ID', null),
-    'client_secret' 	=> env('BOX_CLIENT_SECRET', null),
+    'client_id' => env('BOX_CLIENT_ID', null),
+    'client_secret' => env('BOX_CLIENT_SECRET', null),
 
     /*
     |--------------------------------------------------------------------------
@@ -25,7 +25,7 @@ return [
     |
     */
 
-    'enterprise_id' 	=> env('BOX_ENTERPRISE_ID', null),
+    'enterprise_id' => env('BOX_ENTERPRISE_ID', null),
 
     /*
     |--------------------------------------------------------------------------
@@ -38,7 +38,7 @@ return [
     |
     */
 
-    'public_key_id'     => env('BOX_KEY_ID', null),
-    'private_key'       => base_path().'/private_key.pem',
-    'passphrase'        => env('BOX_KEY_PASSWORD', null),
+    'public_key_id' => env('BOX_KEY_ID', null),
+    'private_key' => base_path().'/private_key.pem',
+    'passphrase' => env('BOX_KEY_PASSWORD', null),
 ];

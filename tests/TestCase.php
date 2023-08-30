@@ -2,10 +2,8 @@
 
 namespace PrasadChinwal\Box\Test;
 
-use Closure;
 use Orchestra\Testbench\TestCase as Orchestra;
 use PrasadChinwal\Box\BoxServiceProvider;
-use UisIts\Oidc\ShibbolethServiceProvider;
 
 abstract class TestCase extends Orchestra
 {
@@ -20,14 +18,10 @@ abstract class TestCase extends Orchestra
     protected function getPackageProviders($app): array
     {
         return [
-            BoxServiceProvider::class
+            BoxServiceProvider::class,
         ];
     }
 
-    /**
-     * @param $app
-     * @return void
-     */
     protected function getEnvironmentSetUp($app): void
     {
         $app['config']->set('box.client_id', '123');
