@@ -3,6 +3,8 @@
 namespace PrasadChinwal\Box;
 
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Response;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 
 class BoxUser extends Box
@@ -48,5 +50,45 @@ class BoxUser extends Box
             ->get($this->endpoint.$this->id.'/memberships')
             ->throwUnlessStatus(200)
             ->collect();
+    }
+
+    /**
+     * @param  string  $toUser
+     * @param  bool  $notify
+     * @return Collection
+     * @throws RequestException
+     */
+    public function transfer(string $toUser, bool $notify = false): Collection
+    {
+        return Http::asJson()
+            ->withToken($this->getAccessToken())
+            ->withQueryParameters([
+                'notify' => $notify
+            ])
+            ->put(`{$this->endpoint}{$this->id}/folders/0`, [
+                'owned_by' => [
+                    'id' => $toUser
+                ]
+            ])
+            ->throwUnlessStatus(200)
+            ->collect();
+    }
+
+    /**
+     * @param  bool  $force
+     * @param  bool  $notify
+     * @return Response
+     * @throws RequestException
+     */
+    public function delete(bool $force = false, bool $notify = true): Response
+    {
+        Http::withToken($this->getAccessToken())
+            ->withQueryParameters([
+                'force' => $force,
+                'notify' => $notify
+            ])
+            ->delete($this->endpoint . $this->id)
+            ->throwUnlessStatus(204);
+        return new Response('User has been deleted successfully');
     }
 }

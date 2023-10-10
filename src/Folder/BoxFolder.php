@@ -3,6 +3,7 @@
 namespace PrasadChinwal\Box\Folder;
 
 use Exception;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;

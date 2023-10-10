@@ -383,4 +383,17 @@ A wrapper to integrate Box Api's to a Laravel Application.
     use PrasadChinwal\Box\Facades\Box;
     Box::user()->whereId('3477983675')->memberships();
     ```
-  
+
+- Transfer User Folder: [Documentation](https://developer.box.com/reference/put-users-id-folders-0/#param-owned_by-id)
+  Get User
+    ```php
+    use PrasadChinwal\Box\Facades\Box;
+    Box::user()->whereId('3477983675')->transfer(toUser: 'The ID of the user who the folder will be transferred to', notify: false);
+    ```
+
+- Delete User: [Documentation](https://developer.box.com/reference/delete-users-id/)
+  Get User
+    ```php
+    use PrasadChinwal\Box\Facades\Box;
+    Box::user()->whereId('3477983675')->delete(force: false, notify: false);
+    ```
