@@ -64,13 +64,14 @@ class BoxFile extends Box implements FileContract
     /**
      * @throws FileNotFoundException
      * @throws Exception
+     * @throws \Throwable
      */
     public function downloadFile(): BinaryFileResponse
     {
+        $fileInfo = $this->info();
         $response = Http::withToken($this->getAccessToken())
-            ->sink(storage_path('/app/test.pdf'))
+            ->sink(storage_path("/app/{$fileInfo['name']}"))
             ->get($this->endpoint.$this->id.'/content');
-
         if ($response->noContent()) {
             throw new FileNotFoundException('The file information was not found!');
         }
@@ -79,7 +80,7 @@ class BoxFile extends Box implements FileContract
             throw new Exception('Could not find File!');
         }
 
-        return response()->download(storage_path('/app/test.pdf'));
+        return response()->download(storage_path("/app/{$fileInfo['name']}"));
     }
 
     /**
