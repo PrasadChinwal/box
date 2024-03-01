@@ -25,7 +25,7 @@ class BoxFolder extends Box implements FolderContract
 
     protected string $lockEndpoint = 'https://api.box.com/2.0/folder_locks';
 
-    protected ?string $id = null;
+    protected ?string $id = '0';
 
     protected Collection $result;
 
