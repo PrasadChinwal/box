@@ -31,8 +31,9 @@ class Box
     {
         $response = Http::asForm()
             ->post($this->authenticationUrl, [
-                'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-                'assertion' => $this->getSignedClaims(),
+                'grant_type' => 'client_credentials',
+                'box_subject_type' => 'enterprise',
+                'box_subject_id' => '83165',
                 'client_id' => config('box.client_id'),
                 'client_secret' => config('box.client_secret'),
             ])

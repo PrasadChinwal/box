@@ -2,6 +2,7 @@
 
 namespace PrasadChinwal\Box;
 
+use Exception;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Response;
@@ -31,12 +32,13 @@ class BoxUser extends Box
      *
      * @throws RequestException
      */
-    public function all(): \Spatie\LaravelData\CursorPaginatedDataCollection|\Spatie\LaravelData\DataCollection|\Spatie\LaravelData\PaginatedDataCollection
+    public function all()
     {
         $response = Http::withToken($this->getAccessToken())
             ->get($this->endpoint)
             ->throwUnlessStatus(200)
             ->collect('entries');
+        return json_encode($response);
         return User::collection($response);
     }
 
@@ -45,12 +47,13 @@ class BoxUser extends Box
      *
      * @throws RequestException
      */
-    public function get(): User
+    public function get()
     {
         $response = Http::withToken($this->getAccessToken())
             ->get($this->endpoint.'me')
             ->throwUnlessStatus(200)
             ->collect();
+        return json_encode($response);
         return User::from($response);
     }
 
@@ -72,12 +75,13 @@ class BoxUser extends Box
      *
      * @throws RequestException
      */
-    public function first(): User
+    public function first()
     {
         $response = Http::withToken($this->getAccessToken())
             ->get($this->endpoint.$this->id)
             ->throwUnlessStatus(200)
             ->collect();
+        return json_encode($response);
         return User::from($response);
     }
 
@@ -102,23 +106,22 @@ class BoxUser extends Box
 
     /**
      * Transfers the contents of root folder of user to another user.
-     * @param string $to
-     * @return bool
+     *
+     * @param string $from User id of the account to transfer from
+     * @param string $to   User id of the account to transfer to
+     *
      * @throws RequestException
      */
-    public function transfer(string $to): bool
+    public function transfer(string $from, string $to)
     {
-        $response = Http::withToken($this->getAccessToken())
+        return Http::withToken($this->getAccessToken())
             ->asJson()
-            ->put($this->endpoint.$this->id."/folders/0", [
+            ->put($this->endpoint.$from."/folders/0", [
                 'owned_by' => [
                     'id' => $to
                 ]
-            ])->throwUnlessStatus(200);
-        if($response->status() === 200) {
-            return true;
-        }
-        return false;
+            ])->throwUnlessStatus(200)
+        ->json();
     }
 
     /**
@@ -126,7 +129,7 @@ class BoxUser extends Box
      */
     public function findByEmail(string $email)
     {
-        $result = Http::withToken($this->getAccessToken())
+        return Http::withToken($this->getAccessToken())
             ->get($this->endpoint, [
                 'filter_term' => $email,
                 'limit' => 10,
@@ -134,6 +137,28 @@ class BoxUser extends Box
             ])
             ->throwUnlessStatus(200)
         ->collect('entries');
-        return User::collection($result);
+//        return User::collection($result);
+    }
+
+    /**
+     * Decommission a give user by transferring the data to root user.
+     * @param string $transferTo user id of the person to transfer the data to.
+     *
+     */
+    public function deprovision(string $transferFrom, string $transferTo)
+    {
+        try {
+            return $this->transfer($transferFrom, $transferTo);
+        } catch (Exception $exception) {
+            dump("Error during transferring user data!");
+            dd($exception);
+        }
+
+//        try {
+//            $delete = $this->delete();
+//        } catch (Exception $exception) {
+//            dump("Error during Deleting a user");
+//            dd($exception);
+//        }
     }
 }
