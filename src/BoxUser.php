@@ -6,7 +6,6 @@ use Exception;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Response;
-use PrasadChinwal\Box\Dto\User;
 
 class BoxUser extends Box
 {
@@ -39,7 +38,6 @@ class BoxUser extends Box
             ->throwUnlessStatus(200)
             ->collect('entries');
         return json_encode($response);
-        return User::collection($response);
     }
 
     /**
@@ -54,7 +52,6 @@ class BoxUser extends Box
             ->throwUnlessStatus(200)
             ->collect();
         return json_encode($response);
-        return User::from($response);
     }
 
     /**
@@ -82,7 +79,6 @@ class BoxUser extends Box
             ->throwUnlessStatus(200)
             ->collect();
         return json_encode($response);
-        return User::from($response);
     }
 
     /**
@@ -137,7 +133,6 @@ class BoxUser extends Box
             ])
             ->throwUnlessStatus(200)
             ->collect('entries');
-//        return User::collection($result);
     }
 
     /**

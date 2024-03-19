@@ -1,6 +1,15 @@
 <?php
 
 return [
+    /**
+     * Authentication Method to use when interacting with BOX.
+     * For more information see: https://developer.box.com/guides/authentication/select/
+     * Currently supported methods: 'app_token', 'client_credentials'
+     * app_token method requires the `private_key.pem` file at your application root level.
+     */
+
+    'auth_method' => env('BOX_AUTH_METHOD', 'app_token'),
+
     /*
     |--------------------------------------------------------------------------
     | Box Developer IDs
