@@ -84,6 +84,28 @@ class BoxFile extends Box implements FileContract
     }
 
     /**
+     * Returns the download url for the file
+     *
+     * @throws Exception
+     */
+    public function getDownloadUrl(): string
+    {
+        $response = Http::withToken($this->getAccessToken())
+            ->withOptions([
+                'allow_redirects' => false
+            ])
+            ->get($this->endpoint.$this->id.'/content');
+
+        if ($response->status() !== 302) {
+            throw new Exception('Could not find File!');
+        }
+        if(!$response->header('location')) {
+            throw new Exception('File download url not found!');
+        }
+        return $response->header('location');
+    }
+
+    /**
      * @see https://developer.box.com/reference/get-files-id-thumbnail-id/
      *
      * @throws RequestException

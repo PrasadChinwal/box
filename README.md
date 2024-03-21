@@ -32,6 +32,13 @@ A wrapper to integrate Box Api's to a Laravel Application.
     Box::file()->whereId('1234')->downloadFile();
     ```
 
+- Get Download File URL: [Documentation](https://developer.box.com/guides/downloads/get-url/)
+  Returns the download url of a file as a string.
+    ```php
+    use PrasadChinwal\Box\Facades\Box;
+    Box::file()->whereId('1234')->getDownloadUrl();
+    ```
+
 - Create Shared Link for File: [Documentation](https://developer.box.com/reference/put-files-id--add-shared-link/)
   Adds a shared link to a file.
     ```php
