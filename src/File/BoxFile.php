@@ -38,12 +38,31 @@ class BoxFile extends Box implements FileContract
 
     protected Collection $result;
 
+    protected ?string $folderId = null;
+
+    public function __construct()
+    {
+        parent::__construct();
+        $this->folderId = config('box.folder_id');
+    }
+
     /**
      * @throws Exception
      */
     public function whereId(string $id): BoxFile
     {
         $this->id = $id;
+
+        return $this;
+    }
+
+    /**
+     * @param string $id
+     * @return BoxFile
+     */
+    public function inFolder(string $id): BoxFile
+    {
+        $this->folderId = $id;
 
         return $this;
     }
@@ -59,6 +78,23 @@ class BoxFile extends Box implements FileContract
             ->get($this->endpoint.$this->id)
             ->throwUnlessStatus(200)
             ->collect();
+    }
+
+    /**
+     * @return string
+     * @throws FileNotFoundException
+     */
+    public function contents(): string
+    {
+        $fileInfo = $this->info();
+        $response = Http::withToken($this->getAccessToken())
+            ->sink(storage_path("/app/{$fileInfo['name']}"))
+            ->get($this->endpoint.$this->id.'/content');
+        if ($response->noContent()) {
+            throw new FileNotFoundException('The file information was not found!');
+        }
+        dump(\Storage::get(storage_path("/app/{$fileInfo['name']}")));
+        return $response;
     }
 
     /**
@@ -170,6 +206,29 @@ class BoxFile extends Box implements FileContract
             ->withToken($this->getAccessToken())
             ->attach('file', file_get_contents($filepath), $filename)
             ->post($this->uploadUrl, $attributes)
+            ->throwUnlessStatus(201)
+            ->collect();
+    }
+
+    /**
+     * @see https://developer.box.com/guides/uploads/direct/file/
+     *
+     * @throws RequestException
+     */
+    public function write(string $filepath, $contents): Collection
+    {
+        $filename = basename($filepath);
+        return Http::asMultipart()
+            ->withToken($this->getAccessToken())
+            ->attach('file', $contents, $filename)
+            ->post($this->uploadUrl, [
+                'attributes' => json_encode([
+                    'name' => $filename,
+                    'parent' => [
+                        'id' => $this->folderId
+                    ],
+                ]),
+            ])
             ->throwUnlessStatus(201)
             ->collect();
     }

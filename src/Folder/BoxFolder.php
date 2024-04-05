@@ -29,6 +29,12 @@ class BoxFolder extends Box implements FolderContract
 
     protected Collection $result;
 
+    public function __construct()
+    {
+        parent::__construct();
+        $this->id = config('box.folder_id');
+    }
+
     /**
      * @throws Exception
      */
@@ -72,6 +78,26 @@ class BoxFolder extends Box implements FolderContract
      */
     public function create(array $attributes): Collection
     {
+        return Http::asJson()
+            ->withToken($this->getAccessToken())
+            ->post($this->endpoint.$this->id, $attributes)
+            ->throwUnlessStatus(201)
+            ->collect();
+    }
+
+    /**
+     * @param string $name
+     * @return Collection
+     * @throws RequestException
+     */
+    public function createDirectory(string $name): Collection
+    {
+        $attributes = [
+            'name' => $name,  // The name for the new folder. max length 255
+            'parent' => [  // The parent folder to create the new folder within
+                'id' => $this->id,
+            ],
+        ];
         return Http::asJson()
             ->withToken($this->getAccessToken())
             ->post($this->endpoint.$this->id, $attributes)

@@ -50,4 +50,13 @@ return [
     'public_key_id' => env('BOX_KEY_ID', null),
     'private_key' => base_path().'/private_key.pem',
     'passphrase' => env('BOX_KEY_PASSWORD', null),
+
+    /*
+    |--------------------------------------------------------------------------
+    | BOX ROOT FOLDER ID
+    |--------------------------------------------------------------------------
+    | This is the folder id of the root folder where transactions will occur.
+    | If Not provided, the root folder is considered as 0.
+     */
+    'folder_id' => env('BOX_FOLDER_ID', 0),
 ];

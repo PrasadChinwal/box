@@ -9,6 +9,70 @@ A wrapper to integrate Box Api's to a Laravel Application.
 - Run `php artisan vendor:publish` and publish the config file.
 - Edit the `config/box.php` file to configure your settings. To know more about configuration visit [https://developer.box.com/guides/](https://developer.box.com/guides/)
 
+### Integrating with Laravel's Storage/File component:
+To integrate the package with laravel's Storage and File components add the box driver to your `config/filesystems.php` file.
+```php
+'disks' => [
+
+        'local' => [
+            'driver' => 'local',
+            'root' => storage_path('app'),
+            'throw' => false,
+        ],
+
+        'box' => [
+            'driver' => 'box',
+        ]
+
+    ],
+```
+Then we need to let Laravel know that we are using a custom adapter for Box driver. To do this, in your `app/Providers/AppServiceProvider.php` file
+extend the `Storage` class as below:
+```php
+use Illuminate\Filesystem\FilesystemAdapter;
+use Illuminate\Support\Facades\Storage;
+use League\Flysystem\Filesystem;
+use PrasadChinwal\Box\BoxFileAdapter;
+use Illuminate\Contracts\Foundation\Application;
+
+public function boot(): void
+{
+    Storage::extend('box', function (Application $app, array $config) {
+        $adapter = new BoxFileAdapter();
+
+        return new FilesystemAdapter(
+            new Filesystem($adapter, $config),
+            $adapter,
+            $config
+        );
+    });
+}
+```
+
+> Note:
+> 
+> Please make sure you provide the base folder id in `config/box.php` file. This ensures that all your queries are made against this base folder.
+
+Now you can use your `Storage` facades to perform actions. ex. 
+
+- Check if file exists in box
+`Storage::disk('box')->fileExists('box_file_id');`
+
+- Check if folder exists in box
+`Storage::disk('box')->folderExists('box_folder_id');`
+
+- Read the contents of the file
+`Storage::disk('box')->get('box_file_id');`
+
+- Write the file to box folder.
+`Storage::disk('box')->put(storage_path('file_path/file.pdf'), file_get_contents(storage_path('file_path/file.pdf')));`
+
+- Delete a file from box.
+`Storage::disk('box')->delete('box_file_id');`
+
+- Delete a directory from box
+`Storage::disk('box')->deleteDirectory('box_folder_id');`
+
 
 ## Usage:
 
