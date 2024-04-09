@@ -16,8 +16,8 @@ use PrasadChinwal\Box\Traits\HasLock;
 class BoxFolder extends Box implements FolderContract
 {
     use CanCollaborate;
-    use HasLock;
     use CanShare;
+    use HasLock;
 
     protected string $endpoint = 'https://api.box.com/2.0/folders/';
 
@@ -86,8 +86,6 @@ class BoxFolder extends Box implements FolderContract
     }
 
     /**
-     * @param string $name
-     * @return Collection
      * @throws RequestException
      */
     public function createDirectory(string $name): Collection
@@ -98,6 +96,7 @@ class BoxFolder extends Box implements FolderContract
                 'id' => $this->id,
             ],
         ];
+
         return Http::asJson()
             ->withToken($this->getAccessToken())
             ->post($this->endpoint.$this->id, $attributes)

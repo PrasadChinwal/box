@@ -7,7 +7,6 @@ return [
      * Currently supported methods: 'app_token', 'client_credentials'
      * app_token method requires the `private_key.pem` file at your application root level.
      */
-
     'auth_method' => env('BOX_AUTH_METHOD', 'app_token'),
 
     /*
