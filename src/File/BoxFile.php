@@ -40,10 +40,13 @@ class BoxFile extends Box implements FileContract
 
     protected ?string $folderId = null;
 
+    public ?string $storagePath = null;
+
     public function __construct()
     {
         parent::__construct();
         $this->folderId = config('box.folder_id');
+        $this->storagePath = storage_path('/app/');
     }
 
     /**
@@ -88,12 +91,11 @@ class BoxFile extends Box implements FileContract
     {
         $fileInfo = $this->info();
         $response = Http::withToken($this->getAccessToken())
-            ->sink(storage_path("/app/{$fileInfo['name']}"))
+            ->sink($this->storagePath .$fileInfo['name'])
             ->get($this->endpoint.$this->id.'/content');
         if ($response->noContent()) {
             throw new FileNotFoundException('The file information was not found!');
         }
-        dump(\Storage::get(storage_path("/app/{$fileInfo['name']}")));
         return $response;
     }
 
@@ -106,7 +108,7 @@ class BoxFile extends Box implements FileContract
     {
         $fileInfo = $this->info();
         $response = Http::withToken($this->getAccessToken())
-            ->sink(storage_path("/app/{$fileInfo['name']}"))
+            ->sink($this->storagePath .$fileInfo['name'])
             ->get($this->endpoint.$this->id.'/content');
         if ($response->noContent()) {
             throw new FileNotFoundException('The file information was not found!');
@@ -116,7 +118,7 @@ class BoxFile extends Box implements FileContract
             throw new Exception('Could not find File!');
         }
 
-        return response()->download(storage_path("/app/{$fileInfo['name']}"));
+        return response()->download($this->storagePath . $fileInfo['name']);
     }
 
     /**
