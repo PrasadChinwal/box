@@ -4,6 +4,7 @@ namespace PrasadChinwal\Box;
 
 use Generator;
 use Illuminate\Contracts\Filesystem\FileNotFoundException;
+use Illuminate\Support\Facades\Log;
 use League\Flysystem\ChecksumProvider;
 use League\Flysystem\Config;
 use League\Flysystem\DirectoryAttributes;
@@ -47,7 +48,7 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
     public function fileExists(string $id): bool
     {
         try {
-            $file = Box::file()->whereId(\config('box.folder_id'))->info();
+            $file = Box::file()->search($id);
 
             return ! empty($file['id']);
         } catch (\Exception $exception) {
@@ -221,30 +222,40 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
     public function fileSize(string $id): FileAttributes
     {
         try {
-            $box = Box::file()->whereId($id);
-            $info = $box->info();
-            // This is required in order to download the file from box to local storage.
-            $file = Box::file()->whereId($id)->contents();
+            $box = Box::file();
+            $file = $box->search($id);
+            $download = Box::file()->whereId($file['id'])->contents();
 
+            // This is required in order to download the file from box to local storage.
             return new FileAttributes(
                 path: $box->storagePath.$id,
-                fileSize: $info['size'],
-                mimeType: $this->getMimeType($box->storagePath.$info['name']),
+                fileSize: $file['size'],
+                mimeType: $this->getMimeType($box->storagePath.$file['name']),
             );
         } catch (\Exception $exception) {
-            throw new \Exception('Could not get file info! fileSize');
+            throw new \Exception('Could not get file size!'.$exception->getMessage());
         }
     }
 
+    /**
+     * @throws \Exception
+     */
     public function mimeType(string $path): FileAttributes
     {
-        return new FileAttributes(
-            $path,
-            null,
-            null,
-            null,
-            $this->mimeTypeDetector->detectMimeTypeFromPath($path)
-        );
+        try {
+            $box = Box::file();
+            $file = $box->search($path);
+
+            return new FileAttributes(
+                $box->storagePath.$path,
+                null,
+                null,
+                null,
+                $this->mimeTypeDetector->detectMimeTypeFromPath($box->storagePath.$file['name'])
+            );
+        } catch (\Exception $exception) {
+            throw new \Exception('Could not get file mimeType!'.$exception->getMessage());
+        }
     }
 
     /**
@@ -255,9 +266,10 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
      */
     private function getMimeType(string $filePath): string
     {
-        $detector = new FinfoMimeTypeDetector();
+        $box = Box::file();
+        $file = $box->search($filePath);
 
-        return $detector->detectMimeTypeFromPath($filePath);
+        return $this->mimeTypeDetector->detectMimeTypeFromPath($box->storagePath.$file['name']);
     }
 
     /**
@@ -304,7 +316,13 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
 
     public function getUrl(string $id)
     {
-        return Box::file()->whereId($id)->getDownloadUrl();
+        try {
+            $file = Box::file()->search($id);
+
+            return Box::file()->whereId($file['id'])->getDownloadUrl();
+        } catch (\Exception $exception) {
+            Log::error('Exception: '.$exception->getMessage());
+        }
     }
 
     protected function normalizeResponse(array $response)
