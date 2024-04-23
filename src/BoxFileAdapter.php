@@ -2,17 +2,34 @@
 
 namespace PrasadChinwal\Box;
 
+use Generator;
 use Illuminate\Contracts\Filesystem\FileNotFoundException;
 use League\Flysystem\ChecksumProvider;
 use League\Flysystem\Config;
+use League\Flysystem\DirectoryAttributes;
 use League\Flysystem\FileAttributes;
 use League\Flysystem\FilesystemAdapter;
+use League\Flysystem\PathPrefixer;
 use League\MimeTypeDetection\FinfoMimeTypeDetector;
+use League\MimeTypeDetection\MimeTypeDetector;
 use PrasadChinwal\Box\Facades\Box;
 
 class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
 {
     protected ?string $folderId = null;
+
+    protected PathPrefixer $prefixer;
+
+    protected MimeTypeDetector $mimeTypeDetector;
+
+    public function __construct(
+        string $prefix = '',
+        ?MimeTypeDetector $mimeTypeDetector = null
+    ) {
+        $this->folderId = config('box.folder_id');
+        $this->prefixer = new PathPrefixer($prefix);
+        $this->mimeTypeDetector = $mimeTypeDetector ?: new FinfoMimeTypeDetector();
+    }
 
     public function inFolder(string $id)
     {
@@ -30,7 +47,7 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
     public function fileExists(string $id): bool
     {
         try {
-            $file = Box::file()->whereId($id)->info();
+            $file = Box::file()->whereId(\config('box.folder_id'))->info();
 
             return ! empty($file['id']);
         } catch (\Exception $exception) {
@@ -49,7 +66,7 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
     public function directoryExists(string $id): bool
     {
         try {
-            $folder = Box::folder()->whereId($id)->info();
+            $folder = Box::folder()->whereId(\config('box.folder_id'))->info();
 
             return ! empty($folder['id']);
         } catch (\Exception $exception) {
@@ -201,14 +218,6 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
     /**
      * @throws \Exception
      */
-    public function mimeType(string $id): FileAttributes
-    {
-        return $this->fileSize($id);
-    }
-
-    /**
-     * @throws \Exception
-     */
     public function fileSize(string $id): FileAttributes
     {
         try {
@@ -223,12 +232,23 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
                 mimeType: $this->getMimeType($box->storagePath.$info['name']),
             );
         } catch (\Exception $exception) {
-            throw new \Exception('Could not get file info!');
+            throw new \Exception('Could not get file info! fileSize');
         }
     }
 
+    public function mimeType(string $path): FileAttributes
+    {
+        return new FileAttributes(
+            $path,
+            null,
+            null,
+            null,
+            $this->mimeTypeDetector->detectMimeTypeFromPath($path)
+        );
+    }
+
     /**
-     * Gets the MIME type of a file.
+     * Gets the MIME type of file.
      *
      * @param  string  $filePath  The path of the file.
      * @return string The MIME type of the file.
@@ -258,11 +278,63 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
      */
     public function listContents(string $id, bool $deep): iterable
     {
-        try {
-            return Box::folder()->whereId($id)->items();
-        } catch (\Exception $exception) {
-            throw new \Exception('Could not get file info!');
+        foreach ($this->iterateFolderContents($id, $deep) as $entry) {
+            $storageAttrs = $this->normalizeResponse($entry);
+
+            // Avoid including the base directory itself
+            if ($storageAttrs->isDir() && $storageAttrs->path() === $id) {
+                continue;
+            }
+            yield $storageAttrs;
         }
+    }
+
+    protected function iterateFolderContents(string $id = '', bool $deep = false): Generator
+    {
+        $location = $this->applyPathPrefix($id);
+
+        try {
+            $result = Box::folder()->whereId($this->folderId)->items();
+        } catch (\Exception $exception) {
+            return;
+        }
+
+        yield from $result['entries'];
+    }
+
+    public function getUrl(string $id)
+    {
+        return Box::file()->whereId($id)->getDownloadUrl();
+    }
+
+    protected function normalizeResponse(array $response)
+    {
+        $timestamp = (isset($response['server_modified'])) ? strtotime($response['server_modified']) : null;
+        dump($response);
+        if ($response['type'] === 'folder') {
+            $normalizedPath = ltrim($this->prefixer->stripDirectoryPrefix($response['path_display']), '/');
+
+            return new DirectoryAttributes(
+                $normalizedPath,
+                null,
+                $timestamp
+            );
+        }
+
+        $normalizedPath = ltrim($this->prefixer->stripPrefix($response['id']), '/');
+
+        return new FileAttributes(
+            $normalizedPath,
+            $response['size'] ?? null,
+            null,
+            $timestamp,
+            $this->mimeTypeDetector->detectMimeTypeFromPath($normalizedPath)
+        );
+    }
+
+    protected function applyPathPrefix($path): string
+    {
+        return '/'.trim($this->prefixer->prefixPath($path), '/');
     }
 
     /**

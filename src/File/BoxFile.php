@@ -67,6 +67,20 @@ class BoxFile extends Box implements FileContract
     }
 
     /**
+     * @throws RequestException
+     */
+    public function search(string $filename): Collection
+    {
+        return Http::withToken($this->getAccessToken())
+            ->get('https://api.box.com/2.0/search', [
+                'query' => $filename,
+                'content_types' => 'name',
+            ])
+            ->throwUnlessStatus(200)
+            ->collect();
+    }
+
+    /**
      * @see https://developer.box.com/reference/get-files-id/
      *
      * @throws Exception
