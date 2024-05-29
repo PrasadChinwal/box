@@ -2,8 +2,8 @@
 
 namespace PrasadChinwal\Box;
 
-use Exception;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Response;
 
@@ -140,24 +140,23 @@ class BoxUser extends Box
     }
 
     /**
-     * Decommission a give user by transferring the data to root user.
+     * Creates a new box user.
      *
-     * @param  string  $transferTo  user id of the person to transfer the data to.
+     * @return void
+     *
+     * @throws \Exception
      */
-    public function deprovision(string $transferFrom, string $transferTo)
+    public function create(array $config)
     {
-        try {
-            return $this->transfer($transferFrom, $transferTo);
-        } catch (Exception $exception) {
-            dump('Error during transferring user data!');
-            dd($exception);
+        if (! Arr::has($config, ['name', 'login'])) {
+            throw new \Exception('Please provide a name and login for the user!');
         }
-
-        //        try {
-        //            $delete = $this->delete();
-        //        } catch (Exception $exception) {
-        //            dump("Error during Deleting a user");
-        //            dd($exception);
-        //        }
+        try {
+            Http::withToken($this->getAccessToken())
+                ->post($this->endpoint, $config)
+                ->throwUnlessStatus(201);
+        } catch (\Exception $exception) {
+            throw new \Exception('Could not create box user!');
+        }
     }
 }

@@ -4,6 +4,7 @@ namespace PrasadChinwal\Box\File;
 
 use Exception;
 use Illuminate\Contracts\Filesystem\FileNotFoundException;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
@@ -11,6 +12,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 use PrasadChinwal\Box\Box;
 use PrasadChinwal\Box\Contracts\FileContract;
+use PrasadChinwal\Box\Responses\File\FileResponse;
 use PrasadChinwal\Box\Traits\CanCollaborate;
 use PrasadChinwal\Box\Traits\CanShare;
 use PrasadChinwal\Box\Traits\CanWatermark;
@@ -67,40 +69,54 @@ class BoxFile extends Box implements FileContract
     }
 
     /**
-     * @throws RequestException
+     * @throws RequestException|\Illuminate\Http\Client\ConnectionException
+     * @throws FileNotFoundException
+     * @throws \Throwable
      */
-    public function search(string $filename): Collection
+    public function search(string $filename): FileResponse
     {
-        return Http::withToken($this->getAccessToken())
+        $search = Http::withToken($this->getAccessToken())
             ->get('https://api.box.com/2.0/search', [
                 'query' => $filename,
+                'ancestor_folder_id' => config('box.folder_id'),
                 'content_types' => 'name',
+                'limit' => 1,
             ])
             ->throwUnlessStatus(200)
-            ->collect();
+            ->collect('entries');
+
+        throw_if($search->isEmpty(), new FileNotFoundException("File $filename not found"));
+
+        return FileResponse::from($search->first());
     }
 
     /**
      * @see https://developer.box.com/reference/get-files-id/
      *
      * @throws Exception
+     * @throws \Throwable
      */
-    public function info(): Collection
+    public function info(): FileResponse
     {
-        return Http::withToken($this->getAccessToken())
+        $info = Http::withToken($this->getAccessToken())
             ->get($this->endpoint.$this->id)
             ->throwUnlessStatus(200)
             ->collect();
+        throw_if($info->isEmpty(), new FileNotFoundException('File information not found'));
+
+        return FileResponse::from($info);
     }
 
     /**
      * @throws FileNotFoundException
+     * @throws Exception
+     * @throws \Throwable
      */
     public function contents(): string
     {
         $fileInfo = $this->info();
         $response = Http::withToken($this->getAccessToken())
-            ->sink($this->storagePath.$fileInfo['name'])
+            ->sink($this->storagePath.$fileInfo->name)
             ->get($this->endpoint.$this->id.'/content');
         if ($response->noContent()) {
             throw new FileNotFoundException('The file information was not found!');
@@ -157,7 +173,7 @@ class BoxFile extends Box implements FileContract
     /**
      * @see https://developer.box.com/reference/get-files-id-thumbnail-id/
      *
-     * @throws RequestException
+     * @throws RequestException|\Illuminate\Http\Client\ConnectionException
      */
     public function thumbnail(string $extension, ?int $width = null, ?int $height = null): Collection
     {
@@ -176,21 +192,16 @@ class BoxFile extends Box implements FileContract
      *
      * @throws Exception
      */
-    public function copy(array $attributes = []): Collection
+    public function copy(array $attributes = []): FileResponse
     {
         $response = Http::asForm()
             ->withToken($this->getAccessToken())
             ->asJson()
-            ->post($this->endpoint.$this->id.'/copy', $attributes);
+            ->post($this->endpoint.$this->id.'/copy', $attributes)
+            ->throwUnlessStatus(201)
+            ->collect();
 
-        if ($response->noContent()) {
-            throw new Exception('The file information was not found!');
-        }
-        if (! $response->successful()) {
-            throw new Exception('Could not find File information!');
-        }
-
-        return $response->collect();
+        return FileResponse::from($response);
     }
 
     /**
@@ -198,29 +209,37 @@ class BoxFile extends Box implements FileContract
      *
      * @throws Exception
      */
-    public function update(array $attributes = []): Collection
+    public function update(array $attributes = []): FileResponse
     {
-        return Http::asForm()
+        $response = Http::asForm()
             ->withToken($this->getAccessToken())
             ->asJson()
             ->put($this->endpoint.$this->id, $attributes)
             ->throwUnlessStatus(200)
             ->collect();
+
+        return FileResponse::from($response);
     }
 
     /**
      * @see https://developer.box.com/guides/uploads/direct/file/
      *
      * @throws RequestException
+     * @throws ConnectionException
+     * @throws \Throwable
      */
-    public function create(string $filepath, string $filename, array $attributes = []): Collection
+    public function create(string $filepath, string $filename, array $attributes = []): FileResponse
     {
-        return Http::asMultipart()
+        $response = Http::asMultipart()
             ->withToken($this->getAccessToken())
             ->attach('file', file_get_contents($filepath), $filename)
             ->post($this->uploadUrl, $attributes)
             ->throwUnlessStatus(201)
-            ->collect();
+            ->collect('entries');
+
+        throw_if($response->isEmpty(), new Exception('Could not create file'));
+
+        return FileResponse::from($response->first());
     }
 
     /**

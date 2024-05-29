@@ -10,7 +10,7 @@ trait HasLock
     /**
      * @see https://developer.box.com/reference/get-folder-locks/
      *
-     * @throws RequestException
+     * @throws RequestException|\Illuminate\Http\Client\ConnectionException
      */
     public function getLocks(): \Illuminate\Support\Collection
     {
@@ -26,7 +26,7 @@ trait HasLock
     /**
      * @see https://developer.box.com/reference/post-folder-locks/
      *
-     * @throws RequestException
+     * @throws RequestException|\Illuminate\Http\Client\ConnectionException
      */
     public function lock(array $attributes): \Illuminate\Support\Collection
     {
@@ -40,7 +40,7 @@ trait HasLock
     /**
      * @see https://developer.box.com/reference/delete-folder-locks-id/
      *
-     * @throws RequestException
+     * @throws RequestException|\Illuminate\Http\Client\ConnectionException
      */
     public function unlock(string $lockid): \Illuminate\Support\Collection
     {

@@ -9,6 +9,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use PrasadChinwal\Box\Box;
 use PrasadChinwal\Box\Contracts\FolderContract;
+use PrasadChinwal\Box\Responses\Folder\FolderResponse;
 use PrasadChinwal\Box\Traits\CanCollaborate;
 use PrasadChinwal\Box\Traits\CanShare;
 use PrasadChinwal\Box\Traits\HasLock;
@@ -50,12 +51,14 @@ class BoxFolder extends Box implements FolderContract
      *
      * @throws Exception
      */
-    public function info(): Collection
+    public function info(): FolderResponse
     {
-        return Http::withToken($this->getAccessToken())
+        $response = Http::withToken($this->getAccessToken())
             ->get($this->endpoint.$this->id)
             ->throwUnlessStatus(200)
             ->collect();
+
+        return FolderResponse::from($response);
     }
 
     /**
@@ -65,10 +68,12 @@ class BoxFolder extends Box implements FolderContract
      */
     public function items(): Collection
     {
-        return Http::withToken($this->getAccessToken())
+        $response = Http::withToken($this->getAccessToken())
             ->get($this->endpoint.$this->id.'/items')
             ->throwUnlessStatus(200)
-            ->collect();
+            ->collect('entries');
+
+        return FolderResponse::collect($response);
     }
 
     /**
@@ -76,13 +81,15 @@ class BoxFolder extends Box implements FolderContract
      *
      * @throws Exception
      */
-    public function create(array $attributes): Collection
+    public function create(array $attributes): FolderResponse
     {
-        return Http::asJson()
+        $response = Http::asJson()
             ->withToken($this->getAccessToken())
-            ->post($this->endpoint.$this->id, $attributes)
+            ->post($this->endpoint, $attributes)
             ->throwUnlessStatus(201)
             ->collect();
+
+        return FolderResponse::from($response);
     }
 
     /**
@@ -109,13 +116,15 @@ class BoxFolder extends Box implements FolderContract
      *
      * @throws Exception
      */
-    public function copy(array $attributes): Collection
+    public function copy(array $attributes): FolderResponse
     {
-        return Http::asJson()
+        $response = Http::asJson()
             ->withToken($this->getAccessToken())
-            ->post($this->endpoint.$this->id, $attributes)
+            ->post($this->endpoint.$this->id.'/copy', $attributes)
             ->throwUnlessStatus(201)
             ->collect();
+
+        return FolderResponse::from($response);
     }
 
     /**
@@ -123,13 +132,15 @@ class BoxFolder extends Box implements FolderContract
      *
      * @throws Exception
      */
-    public function update(array $attributes): Collection
+    public function update(array $attributes): FolderResponse
     {
-        return Http::asJson()
+        $response = Http::asJson()
             ->withToken($this->getAccessToken())
             ->put($this->endpoint.$this->id, $attributes)
             ->throwUnlessStatus(200)
             ->collect();
+
+        return FolderResponse::from($response);
     }
 
     /**

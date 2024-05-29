@@ -23,6 +23,8 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
 
     protected MimeTypeDetector $mimeTypeDetector;
 
+    protected $file = null;
+
     public function __construct(
         string $prefix = '',
         ?MimeTypeDetector $mimeTypeDetector = null
@@ -32,7 +34,7 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
         $this->mimeTypeDetector = $mimeTypeDetector ?: new FinfoMimeTypeDetector();
     }
 
-    public function inFolder(string $id)
+    public function inFolder(string $id): void
     {
         $this->folderId = $id;
     }
@@ -50,7 +52,7 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
         try {
             $file = Box::file()->search($id);
 
-            return ! empty($file['id']);
+            return ! empty($file?->id);
         } catch (\Exception $exception) {
             return false;
         }
@@ -67,9 +69,11 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
     public function directoryExists(string $id): bool
     {
         try {
-            $folder = Box::folder()->whereId(\config('box.folder_id'))->info();
+            $folder = Box::folder()
+                ->whereId(\config('box.folder_id'))
+                ->info();
 
-            return ! empty($folder['id']);
+            return ! empty($folder?->id);
         } catch (\Exception $exception) {
             return false;
         }
@@ -224,13 +228,13 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
         try {
             $box = Box::file();
             $file = $box->search($id);
-            $download = Box::file()->whereId($file['id'])->contents();
+            $download = Box::file()->whereId($file->id)->contents();
 
             // This is required in order to download the file from box to local storage.
             return new FileAttributes(
                 path: $box->storagePath.$id,
-                fileSize: $file['size'],
-                mimeType: $this->getMimeType($box->storagePath.$file['name']),
+                fileSize: $file->size,
+                mimeType: $this->getMimeType($box->storagePath.$file->name),
             );
         } catch (\Exception $exception) {
             throw new \Exception('Could not get file size!'.$exception->getMessage());
@@ -251,7 +255,7 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
                 null,
                 null,
                 null,
-                $this->mimeTypeDetector->detectMimeTypeFromPath($box->storagePath.$file['name'])
+                $this->mimeTypeDetector->detectMimeTypeFromPath($box->storagePath.$file->name)
             );
         } catch (\Exception $exception) {
             throw new \Exception('Could not get file mimeType!'.$exception->getMessage());
@@ -269,7 +273,7 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
         $box = Box::file();
         $file = $box->search($filePath);
 
-        return $this->mimeTypeDetector->detectMimeTypeFromPath($box->storagePath.$file['name']);
+        return $this->mimeTypeDetector->detectMimeTypeFromPath($box->storagePath.$file->name);
     }
 
     /**
@@ -314,21 +318,33 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
         yield from $result['entries'];
     }
 
-    public function getUrl(string $id)
+    /**
+     * Returns the download url for the file.
+     *
+     * @param string $id
+     * @return string
+     *
+     * @throws \Exception
+     */
+    public function getUrl(string $id): string
     {
         try {
             $file = Box::file()->search($id);
 
-            return Box::file()->whereId($file['id'])->getDownloadUrl();
+            return Box::file()->whereId($file->id)->getDownloadUrl();
         } catch (\Exception $exception) {
             Log::error('Exception: '.$exception->getMessage());
+            throw new \Exception('Could not get file url!');
         }
     }
 
+    /**
+     * @return DirectoryAttributes|FileAttributes
+     */
     protected function normalizeResponse(array $response)
     {
         $timestamp = (isset($response['server_modified'])) ? strtotime($response['server_modified']) : null;
-        dump($response);
+
         if ($response['type'] === 'folder') {
             $normalizedPath = ltrim($this->prefixer->stripDirectoryPrefix($response['path_display']), '/');
 
