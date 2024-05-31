@@ -5,6 +5,7 @@ namespace PrasadChinwal\Box;
 use Generator;
 use Illuminate\Contracts\Filesystem\FileNotFoundException;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use League\Flysystem\ChecksumProvider;
 use League\Flysystem\Config;
 use League\Flysystem\DirectoryAttributes;
@@ -137,12 +138,17 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
      *
      * @throws \Exception
      */
-    public function readStream(string $id)
+    public function readStream(string $path)
     {
+        if (Str::contains($path, '/')) {
+            $path = Str::after($path, '/');
+        }
         try {
-            return Box::file()->whereId($id)->contents();
+            $file = Box::file()->search($path);
+
+            return Box::file()->whereId($file->id)->contents();
         } catch (\Exception $exception) {
-            throw new \Exception('Could not read your file!');
+            throw new \Exception("Could not read your file $path!");
         }
     }
 
@@ -165,14 +171,18 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
     /**
      * Deletes a file.
      *
-     * @param  string  $id  The ID of the file to delete.
+     * @param  string  $path  The ID of the file to delete.
      *
      * @throws \Exception Throws an exception if an error occurs while deleting the file.
      */
-    public function delete(string $id): void
+    public function delete(string $path): void
     {
+        if (Str::contains($path, '/')) {
+            $path = Str::after($path, '/');
+        }
         try {
-            Box::file()->whereId($id)->delete();
+            $file = Box::file()->search($path);
+            Box::file()->whereId($file->id)->delete();
         } catch (\Exception $exception) {
             throw new \Exception('Could not delete your file!');
         }
@@ -246,6 +256,9 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
      */
     public function mimeType(string $path): FileAttributes
     {
+        if (Str::contains($path, '/')) {
+            $path = Str::after($path, '/');
+        }
         try {
             $box = Box::file();
             $file = $box->search($path);
@@ -281,7 +294,20 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
      */
     public function lastModified(string $path): FileAttributes
     {
-        throw new \Exception('Not supported yet!');
+        try {
+            $box = Box::file();
+            $file = $box->whereId($path)->info();
+        } catch (\Exception $exception) {
+            throw new \Exception('Could not get file last modified! '.$exception->getMessage());
+        }
+
+        return new FileAttributes(
+            $box->storagePath.$path,
+            $file->size,
+            null,
+            strtotime($file->content_modified_at),
+            $this->mimeTypeDetector->detectMimeTypeFromPath($box->storagePath.$file->name)
+        );
     }
 
     /**
@@ -295,7 +321,7 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
     public function listContents(string $id, bool $deep): iterable
     {
         foreach ($this->iterateFolderContents($id, $deep) as $entry) {
-            $storageAttrs = $this->normalizeResponse($entry);
+            $storageAttrs = $this->normalizeResponse($entry->toArray());
 
             // Avoid including the base directory itself
             if ($storageAttrs->isDir() && $storageAttrs->path() === $id) {
@@ -305,6 +331,9 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
         }
     }
 
+    /**
+     * @throws \Exception
+     */
     protected function iterateFolderContents(string $id = '', bool $deep = false): Generator
     {
         $location = $this->applyPathPrefix($id);
@@ -312,17 +341,14 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
         try {
             $result = Box::folder()->whereId($this->folderId)->items();
         } catch (\Exception $exception) {
-            return;
+            throw new \Exception('Could not iterate folder contents!');
         }
 
-        yield from $result['entries'];
+        yield from $result;
     }
 
     /**
      * Returns the download url for the file.
-     *
-     * @param string $id
-     * @return string
      *
      * @throws \Exception
      */
