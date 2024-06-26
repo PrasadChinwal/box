@@ -246,12 +246,13 @@ class BoxFile extends Box implements FileContract
      * @see https://developer.box.com/guides/uploads/direct/file/
      *
      * @throws RequestException
+     * @throws \Throwable
      */
-    public function write(string $filepath, $contents): Collection
+    public function write(string $filepath, $contents): FileResponse
     {
         $filename = basename($filepath);
 
-        return Http::asMultipart()
+        $response = Http::asMultipart()
             ->withToken($this->getAccessToken())
             ->attach('file', $contents, $filename)
             ->post($this->uploadUrl, [
@@ -263,7 +264,10 @@ class BoxFile extends Box implements FileContract
                 ]),
             ])
             ->throwUnlessStatus(201)
-            ->collect();
+            ->collect('entries');
+        throw_if($response->isEmpty(), new Exception('Could not create file'));
+
+        return FileResponse::from($response->first());
     }
 
     /**

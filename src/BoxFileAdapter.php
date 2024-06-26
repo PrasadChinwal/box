@@ -92,7 +92,7 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
     public function writeStream(string $path, $contents, Config $config): void
     {
         try {
-            Box::file()->write(filepath: $path, contents: $contents);
+            Box::file()->create(filepath: $path, contents: $contents);
         } catch (\Exception $exception) {
             throw new \Exception('Could not upload your file!');
         }
