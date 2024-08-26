@@ -29,15 +29,26 @@ class Box
      */
     protected function requestToken(): Box
     {
-        $response = Http::asForm()
-            ->post($this->authenticationUrl, [
-                'grant_type' => 'client_credentials',
-                'box_subject_type' => 'enterprise',
-                'box_subject_id' => '83165',
-                'client_id' => config('box.client_id'),
-                'client_secret' => config('box.client_secret'),
-            ])
-            ->throwUnlessStatus(200);
+        match (config('box-config.auth_method')) {
+            'app_token' => $response = Http::asForm()
+                ->post($this->authenticationUrl, [
+                    'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+                    'assertion' => $this->getSignedClaims(),
+                    'client_id' => config('box.client_id'),
+                    'client_secret' => config('box.client_secret'),
+                ]),
+            'client_credentials' => $response = Http::asForm()
+                ->post($this->authenticationUrl, [
+                    'grant_type' => 'client_credentials',
+                    'box_subject_type' => 'enterprise',
+                    'box_subject_id' => config('box.enterprise_id'),
+                    'client_id' => config('box.client_id'),
+                    'client_secret' => config('box.client_secret'),
+                ]),
+            'default' => throw new Exception('Box unsupported auth method!')
+        };
+
+        $response->throwUnlessStatus(200);
 
         $this->setAccessToken($response->collect()->get('access_token'));
 

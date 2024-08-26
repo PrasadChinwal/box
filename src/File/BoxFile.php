@@ -38,6 +38,10 @@ class BoxFile extends Box implements FileContract
 
     protected Collection $result;
 
+    protected ?string $folderId = null;
+
+    public ?string $storagePath = null;
+
     /**
      * @throws Exception
      */
@@ -48,17 +52,48 @@ class BoxFile extends Box implements FileContract
         return $this;
     }
 
+    public function inFolder(string $id): BoxFile
+    {
+        $this->folderId = $id;
+
+        return $this;
+    }
+
+    /**
+     * @throws RequestException|\Illuminate\Http\Client\ConnectionException
+     * @throws FileNotFoundException
+     * @throws \Throwable
+     */
+    public function search(string $filename): \PrasadChinwal\Box\Dto\BoxFile
+    {
+        $search = Http::withToken($this->getAccessToken())
+            ->get('https://api.box.com/2.0/search', [
+                'query' => $filename,
+                'ancestor_folder_id' => config('box.folder_id'),
+                'content_types' => 'name',
+                'limit' => 1,
+            ])
+            ->throwUnlessStatus(200)
+            ->collect('entries');
+
+        throw_if($search->isEmpty(), new FileNotFoundException("File $filename not found"));
+
+        return \PrasadChinwal\Box\Dto\BoxFile::from($search->first());
+    }
+
     /**
      * @see https://developer.box.com/reference/get-files-id/
      *
      * @throws Exception
      */
-    public function info(): Collection
+    public function info(): \PrasadChinwal\Box\Dto\BoxFile
     {
-        return Http::withToken($this->getAccessToken())
+        $response = Http::withToken($this->getAccessToken())
             ->get($this->endpoint.$this->id)
             ->throwUnlessStatus(200)
             ->collect();
+
+        return \PrasadChinwal\Box\Dto\BoxFile::from($response);
     }
 
     /**
@@ -84,6 +119,47 @@ class BoxFile extends Box implements FileContract
     }
 
     /**
+     * Returns the download url for the file
+     *
+     * @throws Exception
+     */
+    public function getDownloadUrl(): string
+    {
+        $response = Http::withToken($this->getAccessToken())
+            ->withOptions([
+                'allow_redirects' => false,
+            ])
+            ->get($this->endpoint.$this->id.'/content');
+
+        if ($response->status() !== 302) {
+            throw new Exception('Could not find File!');
+        }
+        if (! $response->header('location')) {
+            throw new Exception('File download url not found!');
+        }
+
+        return $response->header('location');
+    }
+
+    /**
+     * @throws FileNotFoundException
+     * @throws Exception
+     * @throws \Throwable
+     */
+    public function contents(): string
+    {
+        $fileInfo = $this->info();
+        $response = Http::withToken($this->getAccessToken())
+            ->sink($this->storagePath.$fileInfo->name)
+            ->get($this->endpoint.$this->id.'/content');
+        if ($response->noContent()) {
+            throw new FileNotFoundException('The file information was not found!');
+        }
+
+        return $response;
+    }
+
+    /**
      * @see https://developer.box.com/reference/get-files-id-thumbnail-id/
      *
      * @throws RequestException
@@ -105,7 +181,7 @@ class BoxFile extends Box implements FileContract
      *
      * @throws Exception
      */
-    public function copy(array $attributes = []): Collection
+    public function copy(array $attributes = []): \PrasadChinwal\Box\Dto\BoxFile
     {
         $response = Http::asForm()
             ->withToken($this->getAccessToken())
@@ -119,7 +195,7 @@ class BoxFile extends Box implements FileContract
             throw new Exception('Could not find File information!');
         }
 
-        return $response->collect();
+        return \PrasadChinwal\Box\Dto\BoxFile::from($response->collect());
     }
 
     /**
@@ -127,14 +203,15 @@ class BoxFile extends Box implements FileContract
      *
      * @throws Exception
      */
-    public function update(array $attributes = []): Collection
+    public function update(array $attributes = []): \PrasadChinwal\Box\Dto\BoxFile
     {
-        return Http::asForm()
+        $response = Http::asForm()
             ->withToken($this->getAccessToken())
             ->asJson()
             ->put($this->endpoint.$this->id, $attributes)
             ->throwUnlessStatus(200)
             ->collect();
+        return \PrasadChinwal\Box\Dto\BoxFile::from($response);
     }
 
     /**
