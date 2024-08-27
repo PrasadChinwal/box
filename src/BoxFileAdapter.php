@@ -51,8 +51,7 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
     public function fileExists(string $id): bool
     {
         try {
-            $file = Box::file()->search($id);
-
+            $file = Box::file()->search(Str::before($id, '.'));
             return ! empty($file?->id);
         } catch (\Exception $exception) {
             return false;
@@ -241,9 +240,8 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
     {
         try {
             $box = Box::file();
-            $file = $box->search($id);
+            $file = $box->search(Str::before($id, '.'));
             $download = Box::file()->whereId($file->id)->contents();
-
             // This is required in order to download the file from box to local storage.
             return new FileAttributes(
                 path: $box->storagePath.$id,
@@ -265,7 +263,7 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
         }
         try {
             $box = Box::file();
-            $file = $box->search($path);
+            $file = $box->search(Str::before($path, '.'));
 
             return new FileAttributes(
                 $box->storagePath.$path,
@@ -290,7 +288,7 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
     {
         try {
             $box = Box::file();
-            $file = $box->search($filePath);
+            $file = $box->search(Str::before($filePath, '.'));
         }
         catch (\Exception $exception) {
             throw new \Exception('Could not get file mimeType!'.$exception->getMessage());
