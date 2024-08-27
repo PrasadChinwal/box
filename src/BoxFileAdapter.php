@@ -50,7 +50,6 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
      */
     public function fileExists(string $id): bool
     {
-        dump($id);
         try {
             $file = Box::file()->search($id);
 
