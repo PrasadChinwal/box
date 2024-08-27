@@ -50,6 +50,7 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
      */
     public function fileExists(string $id): bool
     {
+        dump($id);
         try {
             $file = Box::file()->search($id);
 
@@ -84,7 +85,7 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
      * Writes contents to a file stream.
      *
      * @param  string  $path  The path where the file will be written.
-     * @param  mixed  $contents  The contents to be written to the file.
+     * @param  resource  $contents  The contents to be written to the file.
      * @param  Config  $config  The configuration object.
      *
      * @throws \Exception Throws an exception if an error occurs while writing the file.
@@ -92,9 +93,11 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
     public function writeStream(string $path, $contents, Config $config): void
     {
         try {
-            Box::file()->create(filepath: $path, contents: $contents);
+            Box::file()
+                ->inFolder($this->folderId)
+                ->write(filepath: $path, contents: $contents);
         } catch (\Exception $exception) {
-            throw new \Exception('Could not upload your file!');
+            throw new \Exception('Could not upload your file! '.$exception->getMessage());
         }
     }
 
@@ -106,7 +109,9 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
     public function write(string $path, string $contents, Config $config): void
     {
         try {
-            Box::file()->write(filepath: $path, contents: $contents);
+            Box::file()
+                ->inFolder($this->folderId)
+                ->write(filepath: $path, contents: $contents);
         } catch (\Exception $exception) {
             throw new \Exception('Could not upload your file!');
         }
@@ -134,11 +139,11 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
     /**
      * Reads the contents of a file as a stream.
      *
-     * @param  string  $id  The
-     *
+     * @param string $path
+     * @return mixed
      * @throws \Exception
      */
-    public function readStream(string $path)
+    public function readStream(string $path): mixed
     {
         if (Str::contains($path, '/')) {
             $path = Str::after($path, '/');
@@ -278,13 +283,19 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
     /**
      * Gets the MIME type of file.
      *
-     * @param  string  $filePath  The path of the file.
+     * @param string $filePath The path of the file.
      * @return string The MIME type of the file.
+     * @throws \Exception
      */
     private function getMimeType(string $filePath): string
     {
-        $box = Box::file();
-        $file = $box->search($filePath);
+        try {
+            $box = Box::file();
+            $file = $box->search($filePath);
+        }
+        catch (\Exception $exception) {
+            throw new \Exception('Could not get file mimeType!'.$exception->getMessage());
+        }
 
         return $this->mimeTypeDetector->detectMimeTypeFromPath($box->storagePath.$file->name);
     }

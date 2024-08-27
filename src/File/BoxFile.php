@@ -230,6 +230,34 @@ class BoxFile extends Box implements FileContract
     }
 
     /**
+     * @see https://developer.box.com/guides/uploads/direct/file/
+     *
+     * @throws RequestException
+     * @throws \Throwable
+     */
+    public function write(string $filepath, $contents): \PrasadChinwal\Box\Dto\BoxFile
+    {
+        $filename = basename($filepath);
+
+        $response = Http::asMultipart()
+            ->withToken($this->getAccessToken())
+            ->attach('file', $contents, $filename)
+            ->post($this->uploadUrl, [
+                'attributes' => json_encode([
+                    'name' => $filename,
+                    'parent' => [
+                        'id' => $this->folderId,
+                    ],
+                ]),
+            ])
+            ->throwUnlessStatus(201)
+            ->collect('entries');
+        throw_if($response->isEmpty(), new Exception('Could not create file'));
+
+        return \PrasadChinwal\Box\Dto\BoxFile::from($response->first());
+    }
+
+    /**
      * @see https://developer.box.com/reference/delete-files-id/
      *
      * @throws Exception
