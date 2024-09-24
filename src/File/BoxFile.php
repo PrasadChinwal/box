@@ -21,8 +21,8 @@ class BoxFile extends Box implements FileContract
 {
     use CanCollaborate;
     use CanShare;
-    use HasVersions;
     use CanWatermark;
+    use HasVersions;
 
     protected string $endpoint = 'https://api.box.com/2.0/files/';
 
@@ -105,7 +105,7 @@ class BoxFile extends Box implements FileContract
     {
         $fileInfo = $this->info();
         $response = Http::withToken($this->getAccessToken())
-            ->sink(storage_path("/app/{$fileInfo['name']}"))
+            ->sink(storage_path("/app/{$fileInfo->name}"))
             ->get($this->endpoint.$this->id.'/content');
         if ($response->noContent()) {
             throw new FileNotFoundException('The file information was not found!');
@@ -115,7 +115,7 @@ class BoxFile extends Box implements FileContract
             throw new Exception('Could not find File!');
         }
 
-        return response()->download(storage_path("/app/{$fileInfo['name']}"));
+        return response()->download(storage_path("/app/{$fileInfo->name}"));
     }
 
     /**
@@ -164,7 +164,7 @@ class BoxFile extends Box implements FileContract
      *
      * @throws RequestException
      */
-    public function thumbnail(string $extension, int $width = null, int $height = null): Collection
+    public function thumbnail(string $extension, ?int $width = null, ?int $height = null): Collection
     {
         if (! in_array($extension, ['.png', '.jpg'])) {
             throw new ValidationException('File extension not supported!');
@@ -211,6 +211,7 @@ class BoxFile extends Box implements FileContract
             ->put($this->endpoint.$this->id, $attributes)
             ->throwUnlessStatus(200)
             ->collect();
+
         return \PrasadChinwal\Box\Dto\BoxFile::from($response);
     }
 
