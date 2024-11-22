@@ -2,7 +2,6 @@
 
 namespace PrasadChinwal\Box\Dto;
 
-use Spatie\LaravelData\Attributes\Validation\Nullable;
 use Spatie\LaravelData\Data;
 use Spatie\LaravelData\Optional;
 
@@ -29,6 +28,6 @@ class BoxFile extends Data
         public string|Optional|null $shared_link,
         public array $parent,
         public string $item_status,
-    )
-    {}
+    ) {
+    }
 }
