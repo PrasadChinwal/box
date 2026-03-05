@@ -88,6 +88,9 @@ class BoxFile extends Box implements FileContract
      */
     public function info(): \PrasadChinwal\Box\Dto\BoxFile
     {
+        dump($this->getAccessToken());
+        dump($this->endpoint.$this->id);
+        dump($this->id);
         $response = Http::withToken($this->getAccessToken())
             ->get($this->endpoint.$this->id)
             ->throwUnlessStatus(200)
