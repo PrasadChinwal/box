@@ -2,10 +2,10 @@
 
 namespace PrasadChinwal\Box\Test;
 
-use Orchestra\Testbench\TestCase as Orchestra;
+use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use PrasadChinwal\Box\BoxServiceProvider;
 
-abstract class TestCase extends Orchestra
+abstract class TestCase extends BaseTestCase
 {
     protected function setUp(): void
     {
