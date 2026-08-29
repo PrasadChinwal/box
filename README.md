@@ -10,6 +10,90 @@ A wrapper to integrate Box Api's to a Laravel Application.
 - Edit the `config/box.php` file to configure your settings. To know more about configuration visit [https://developer.box.com/guides/](https://developer.box.com/guides/)
 
 
+## Laravel Storage Integration
+
+This package provides native Laravel Storage support, allowing you to use Box as a filesystem disk.
+
+### Configuration
+
+Add a `box` disk to your `config/filesystems.php`:
+
+```php
+'disks' => [
+    // ... other disks
+
+    'box' => [
+        'driver' => 'box',
+        'folder_id' => env('BOX_FOLDER_ID', '0'), // Optional: root folder ID (defaults to '0')
+    ],
+],
+```
+
+### Usage
+
+Once configured, you can use Box like any other Laravel Storage disk:
+
+```php
+use Illuminate\Support\Facades\Storage;
+
+// List files in a directory
+$files = Storage::disk('box')->files('directory');
+
+// List all files recursively
+$allFiles = Storage::disk('box')->allFiles('directory');
+
+// Write a file
+Storage::disk('box')->put('directory/file.txt', 'Contents');
+
+// Read a file
+$contents = Storage::disk('box')->get('directory/file.txt');
+
+// Check if a file exists
+if (Storage::disk('box')->exists('file.txt')) {
+    // File exists
+}
+
+// Get file size
+$size = Storage::disk('box')->size('file.txt');
+
+// Get last modified time
+$time = Storage::disk('box')->lastModified('file.txt');
+
+// Delete a file
+Storage::disk('box')->delete('file.txt');
+
+// Copy a file
+Storage::disk('box')->copy('old.txt', 'new.txt');
+
+// Move a file
+Storage::disk('box')->move('old.txt', 'new.txt');
+
+// Create a directory
+Storage::disk('box')->makeDirectory('new-folder');
+
+// Delete a directory
+Storage::disk('box')->deleteDirectory('folder');
+
+// List directories
+$directories = Storage::disk('box')->directories('path');
+```
+
+### Setting as Default Disk
+
+You can set Box as your default filesystem disk in `config/filesystems.php`:
+
+```php
+'default' => env('FILESYSTEM_DISK', 'box'),
+```
+
+Then use Storage without specifying the disk:
+
+```php
+Storage::put('file.txt', 'Contents');
+$contents = Storage::get('file.txt');
+```
+
+
 ## Usage:
 
 ---  

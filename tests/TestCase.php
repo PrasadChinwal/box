@@ -2,7 +2,7 @@
 
 namespace PrasadChinwal\Box\Test;
 
-use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Orchestra\Testbench\TestCase as BaseTestCase;
 use PrasadChinwal\Box\BoxServiceProvider;
 
 abstract class TestCase extends BaseTestCase
@@ -30,5 +30,6 @@ abstract class TestCase extends BaseTestCase
         $app['config']->set('box.public_key_id', '1111');
         $app['config']->set('box.private_key_file', 'xyz');
         $app['config']->set('box.passphrase', 'test@1234');
+        $app['config']->set('box.auth_method', 'client_credentials');
     }
 }
