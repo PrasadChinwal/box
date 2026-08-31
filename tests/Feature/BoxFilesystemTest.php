@@ -199,6 +199,42 @@ class BoxFilesystemTest extends TestCase
         });
     }
 
+    public function test_it_applies_a_path_prefix_to_storage_paths(): void
+    {
+        config()->set('filesystems.disks.box', [
+            'driver' => 'box',
+            'folder_id' => '4321',
+            'prefix' => 'AppsFiles',
+        ]);
+
+        Http::fake([
+            'https://api.box.com/oauth2/token' => Http::response($this->fakeTokenResponse(), 200),
+            'https://api.box.com/2.0/folders/4321/items*' => Http::response([
+                'total_count' => 1,
+                'entries' => [[
+                    'id' => '5555',
+                    'type' => 'folder',
+                    'name' => 'AppsFiles',
+                ]],
+            ], 200),
+            'https://api.box.com/2.0/folders/5555/items*' => Http::response([
+                'total_count' => 1,
+                'entries' => [[
+                    'id' => '1234',
+                    'type' => 'file',
+                    'name' => 'report.pdf',
+                    'size' => 8,
+                ]],
+            ], 200),
+            'https://api.box.com/2.0/files/1234/content' => Http::response('', 302, [
+                'Location' => 'https://dl.boxcloud.com/file',
+            ]),
+            'https://dl.boxcloud.com/file' => Http::response('Contents', 200),
+        ]);
+
+        $this->assertSame('Contents', Storage::disk('box')->get('report.pdf'));
+    }
+
     public function test_it_fetches_all_folder_entries_when_resolving_nested_paths(): void
     {
         Http::fake([

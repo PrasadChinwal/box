@@ -76,6 +76,50 @@ Add a disk to `config/filesystems.php`:
 
 The disk `folder_id` overrides `config('box.folder_id')` for that disk.
 
+### Root path
+
+The Box driver does not use a Laravel-style `root` path. Instead, set where Storage paths begin with `folder_id` and/or `prefix`:
+
+| Option | Purpose |
+| --- | --- |
+| `folder_id` | Box folder ID that acts as the disk root. All paths are relative to this folder. |
+| `prefix` | Optional subfolder path prepended to every Storage path within `folder_id`. |
+
+**Option 1 — root at a Box folder ID**
+
+Point `folder_id` at the folder you want as root (find the ID in the Box web UI or API). Paths no longer need that folder name in them:
+
+```php
+'disks' => [
+    'box' => [
+        'driver' => 'box',
+        'folder_id' => env('BOX_APPS_FOLDER_ID'), // e.g. the AppsFiles folder ID
+    ],
+],
+
+// Resolves to report.pdf inside that folder
+Storage::disk('box')->get('report.pdf');
+```
+
+**Option 2 — account root with a path prefix**
+
+Keep `folder_id` at `0` (or your default root) and set `prefix` to a subfolder name:
+
+```php
+'disks' => [
+    'box' => [
+        'driver' => 'box',
+        'folder_id' => env('BOX_FOLDER_ID', '0'),
+        'prefix' => 'AppsFiles',
+    ],
+],
+
+// Resolves to AppsFiles/report.pdf under folder 0
+Storage::disk('box')->get('report.pdf');
+```
+
+Use one approach or the other. If you already set `folder_id` to the target folder, you usually do not need `prefix`.
+
 ### Storage facade usage
 
 ```php
