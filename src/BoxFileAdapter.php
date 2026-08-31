@@ -172,9 +172,11 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
                 throw UnableToRetrieveMetadata::fileSize($path, 'File not found.');
             }
 
+            $size = $file['size'] ?? $this->resolveFileSize((string) $file['id']);
+
             return new FileAttributes(
                 $this->normalizePath($path),
-                $file['size'] ?? null,
+                $size,
             );
         } catch (UnableToRetrieveMetadata $exception) {
             throw $exception;
@@ -453,5 +455,10 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
     protected function folderEntries(string $folderId): array
     {
         return Box::folder()->whereId($folderId)->allEntries();
+    }
+
+    protected function resolveFileSize(string $fileId): int
+    {
+        return Box::file()->whereId($fileId)->info()->size;
     }
 }

@@ -61,6 +61,7 @@ class BoxFolder extends Box implements FolderContract
             ->get($this->endpoint.$this->id.'/items', [
                 'limit' => $limit,
                 'offset' => $offset,
+                'fields' => 'name,size,modified_at,type,id',
             ])
             ->throwUnlessStatus(200)
             ->collect();
