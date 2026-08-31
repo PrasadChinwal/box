@@ -34,14 +34,16 @@ class BoxFilesystemTest extends TestCase
     {
         Http::fake([
             'https://api.box.com/oauth2/token' => Http::response($this->fakeTokenResponse(), 200),
-            'https://api.box.com/2.0/folders/4321/items' => Http::response([
+            'https://api.box.com/2.0/folders/4321/items*' => Http::response([
+                'total_count' => 1,
                 'entries' => [[
                     'id' => '5555',
                     'type' => 'folder',
                     'name' => 'directory',
                 ]],
             ], 200),
-            'https://api.box.com/2.0/folders/5555/items' => Http::response([
+            'https://api.box.com/2.0/folders/5555/items*' => Http::response([
+                'total_count' => 1,
                 'entries' => [[
                     'id' => '1234',
                     'type' => 'file',
@@ -57,7 +59,10 @@ class BoxFilesystemTest extends TestCase
                     'size' => 8,
                 ]],
             ], 201),
-            'https://api.box.com/2.0/files/1234/content' => Http::response('Contents', 200),
+            'https://api.box.com/2.0/files/1234/content' => Http::response('', 302, [
+                'Location' => 'https://dl.boxcloud.com/file',
+            ]),
+            'https://dl.boxcloud.com/file' => Http::response('Contents', 200),
         ]);
 
         Storage::disk('box')->put('directory/file.txt', 'Contents');
@@ -69,14 +74,16 @@ class BoxFilesystemTest extends TestCase
     {
         Http::fake([
             'https://api.box.com/oauth2/token' => Http::response($this->fakeTokenResponse(), 200),
-            'https://api.box.com/2.0/folders/4321/items' => Http::response([
+            'https://api.box.com/2.0/folders/4321/items*' => Http::response([
+                'total_count' => 1,
                 'entries' => [[
                     'id' => '5555',
                     'type' => 'folder',
                     'name' => 'directory',
                 ]],
             ], 200),
-            'https://api.box.com/2.0/folders/5555/items' => Http::response([
+            'https://api.box.com/2.0/folders/5555/items*' => Http::response([
+                'total_count' => 2,
                 'entries' => [
                     [
                         'id' => '1234',
@@ -102,7 +109,8 @@ class BoxFilesystemTest extends TestCase
     {
         Http::fake([
             'https://api.box.com/oauth2/token' => Http::response($this->fakeTokenResponse(), 200),
-            'https://api.box.com/2.0/folders/4321/items' => Http::response([
+            'https://api.box.com/2.0/folders/4321/items*' => Http::response([
+                'total_count' => 1,
                 'entries' => [[
                     'id' => '1234',
                     'type' => 'file',
@@ -125,7 +133,8 @@ class BoxFilesystemTest extends TestCase
     {
         Http::fake([
             'https://api.box.com/oauth2/token' => Http::response($this->fakeTokenResponse(), 200),
-            'https://api.box.com/2.0/folders/4321/items' => Http::response([
+            'https://api.box.com/2.0/folders/4321/items*' => Http::response([
+                'total_count' => 1,
                 'entries' => [[
                     'id' => '1234',
                     'type' => 'file',
@@ -152,19 +161,29 @@ class BoxFilesystemTest extends TestCase
     {
         Http::fake([
             'https://api.box.com/oauth2/token' => Http::response($this->fakeTokenResponse(), 200),
-            'https://api.box.com/2.0/folders/4321/items' => Http::sequence()
-                ->push(['entries' => [[
-                    'id' => '1234',
-                    'type' => 'file',
-                    'name' => 'old.txt',
-                    'size' => 8,
-                ]]], 200)
-                ->push(['entries' => [[
-                    'id' => '7777',
-                    'type' => 'folder',
-                    'name' => 'new-location',
-                ]]], 200)
-                ->push(['entries' => []], 200),
+            'https://api.box.com/2.0/folders/4321/items*' => Http::sequence()
+                ->push([
+                    'total_count' => 1,
+                    'entries' => [[
+                        'id' => '1234',
+                        'type' => 'file',
+                        'name' => 'old.txt',
+                        'size' => 8,
+                    ]],
+                ], 200)
+                ->push([
+                    'total_count' => 1,
+                    'entries' => [[
+                        'id' => '7777',
+                        'type' => 'folder',
+                        'name' => 'new-location',
+                    ]],
+                ], 200)
+                ->push(['total_count' => 0, 'entries' => []], 200),
+            'https://api.box.com/2.0/folders/7777/items*' => Http::response([
+                'total_count' => 0,
+                'entries' => [],
+            ], 200),
             'https://api.box.com/2.0/files/1234' => Http::response([
                 'id' => '1234',
                 'type' => 'file',
@@ -177,6 +196,40 @@ class BoxFilesystemTest extends TestCase
         Http::assertSent(function ($request) {
             return $request->method() === 'PUT'
                 && $request->url() === 'https://api.box.com/2.0/files/1234';
+        });
+    }
+
+    public function test_it_fetches_all_folder_entries_when_resolving_nested_paths(): void
+    {
+        Http::fake([
+            'https://api.box.com/oauth2/token' => Http::response($this->fakeTokenResponse(), 200),
+            'https://api.box.com/2.0/folders/4321/items*' => Http::response([
+                'total_count' => 1,
+                'entries' => [[
+                    'id' => '5555',
+                    'type' => 'folder',
+                    'name' => 'directory',
+                ]],
+            ], 200),
+            'https://api.box.com/2.0/folders/5555/items*' => Http::response([
+                'total_count' => 1,
+                'entries' => [[
+                    'id' => '1234',
+                    'type' => 'file',
+                    'name' => 'file.txt',
+                    'size' => 8,
+                ]],
+            ], 200),
+            'https://api.box.com/2.0/files/1234/content' => Http::response('', 302, [
+                'Location' => 'https://dl.boxcloud.com/file',
+            ]),
+            'https://dl.boxcloud.com/file' => Http::response('Contents', 200),
+        ]);
+
+        Storage::disk('box')->get('directory/file.txt');
+
+        Http::assertSent(function ($request) {
+            return str_starts_with($request->url(), 'https://api.box.com/2.0/folders/5555/items');
         });
     }
 

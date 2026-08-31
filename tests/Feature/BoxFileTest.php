@@ -28,7 +28,7 @@ class BoxFileTest extends TestCase
             'https://api.box.com/2.0/files/1234' => Http::response($this->fakeBoxFileResponse(), 200),
         ]);
 
-        $file = (new BoxFile())->whereId('1234')->info();
+        $file = (new BoxFile)->whereId('1234')->info();
 
         $this->assertSame('1234', $file->id);
         $this->assertSame('test.pdf', $file->name);
@@ -37,6 +37,31 @@ class BoxFileTest extends TestCase
             return $request->url() === 'https://api.box.com/2.0/files/1234'
                 && $request->hasHeader('Accept', ['application/json'])
                 && $request->hasHeader('Authorization', ['Bearer abcdefghi123456789']);
+        });
+    }
+
+    public function test_it_downloads_file_contents_using_the_box_redirect_url(): void
+    {
+        Http::fake([
+            'https://api.box.com/oauth2/token' => Http::response([
+                'access_token' => 'abcdefghi123456789',
+                'expires_in' => 3600,
+                'token_type' => 'bearer',
+            ], 200),
+            'https://api.box.com/2.0/files/1234/content' => Http::response('', 302, [
+                'Location' => 'https://dl.boxcloud.com/file',
+            ]),
+            'https://dl.boxcloud.com/file' => Http::response('file-bytes', 200),
+        ]);
+
+        $contents = (new BoxFile)->whereId('1234')->contents();
+
+        $this->assertSame('file-bytes', $contents);
+
+        Http::assertSent(function (Request $request) {
+            return $request->url() === 'https://api.box.com/2.0/files/1234/content'
+                && $request->hasHeader('Authorization', ['Bearer abcdefghi123456789'])
+                && ! $request->hasHeader('Accept', ['application/json']);
         });
     }
 

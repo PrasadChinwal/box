@@ -361,11 +361,48 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
             ? $this->rootFolderId()
             : $this->resolveFolderIdForPath($directory);
 
-        if ($folderId === null) {
+        if ($folderId !== null) {
+            $entry = $this->findEntryInFolder($folderId, $filename, 'file');
+
+            if ($entry !== null) {
+                return $entry;
+            }
+        }
+
+        return $this->findFileEntryBySearch($directory, $filename);
+    }
+
+    protected function findFileEntryBySearch(string $directory, string $filename): ?array
+    {
+        try {
+            $file = Box::file()->inFolder($this->rootFolderId())->search($filename);
+        } catch (\Throwable) {
             return null;
         }
 
-        return $this->findEntryInFolder($folderId, $filename, 'file');
+        if ($directory !== '' && ! $this->pathMatchesDirectory($file->path_collection, $directory)) {
+            return null;
+        }
+
+        return [
+            'id' => $file->id,
+            'name' => $file->name,
+            'type' => 'file',
+            'size' => $file->size,
+            'modified_at' => $file->content_modified_at,
+        ];
+    }
+
+    protected function pathMatchesDirectory(array $pathCollection, string $directory): bool
+    {
+        $expectedSegments = explode('/', trim($directory, '/'));
+        $folderNames = collect($pathCollection['entries'] ?? [])
+            ->filter(fn (array $entry) => ($entry['type'] ?? '') === 'folder' && (string) ($entry['id'] ?? '0') !== '0')
+            ->pluck('name')
+            ->values()
+            ->all();
+
+        return $folderNames === $expectedSegments;
     }
 
     protected function resolveFolderIdForPath(string $directory, bool $create = false): ?string
@@ -415,8 +452,6 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
 
     protected function folderEntries(string $folderId): array
     {
-        $items = Box::folder()->whereId($folderId)->items();
-
-        return $items->get('entries', []);
+        return Box::folder()->whereId($folderId)->allEntries();
     }
 }

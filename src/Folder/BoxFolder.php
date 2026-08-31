@@ -14,8 +14,8 @@ use PrasadChinwal\Box\Traits\HasLock;
 class BoxFolder extends Box implements FolderContract
 {
     use CanCollaborate;
-    use HasLock;
     use CanShare;
+    use HasLock;
 
     protected string $endpoint = 'https://api.box.com/2.0/folders/';
 
@@ -55,12 +55,33 @@ class BoxFolder extends Box implements FolderContract
      *
      * @throws Exception
      */
-    public function items(): Collection
+    public function items(int $limit = 1000, int $offset = 0): Collection
     {
         return $this->boxRequest()
-            ->get($this->endpoint.$this->id.'/items')
+            ->get($this->endpoint.$this->id.'/items', [
+                'limit' => $limit,
+                'offset' => $offset,
+            ])
             ->throwUnlessStatus(200)
             ->collect();
+    }
+
+    public function allEntries(): array
+    {
+        $entries = [];
+        $offset = 0;
+        $limit = 1000;
+        $totalCount = null;
+
+        do {
+            $response = $this->items(limit: $limit, offset: $offset);
+            $pageEntries = $response->get('entries', []);
+            $entries = array_merge($entries, $pageEntries);
+            $totalCount = (int) $response->get('total_count', count($entries));
+            $offset += count($pageEntries);
+        } while ($pageEntries !== [] && $offset < $totalCount);
+
+        return $entries;
     }
 
     /**
