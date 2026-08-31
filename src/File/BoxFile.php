@@ -4,6 +4,7 @@ namespace PrasadChinwal\Box\File;
 
 use Exception;
 use Illuminate\Contracts\Filesystem\FileNotFoundException;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
@@ -61,7 +62,7 @@ class BoxFile extends Box implements FileContract
     }
 
     /**
-     * @throws RequestException|\Illuminate\Http\Client\ConnectionException
+     * @throws RequestException|ConnectionException
      * @throws FileNotFoundException
      * @throws \Throwable
      */
@@ -70,7 +71,7 @@ class BoxFile extends Box implements FileContract
         $search = $this->boxRequest()
             ->get('https://api.box.com/2.0/search', [
                 'query' => $filename,
-                'ancestor_folder_id' => config('box.folder_id'),
+                'ancestor_folder_id' => $this->folderId ?? config('box.folder_id'),
                 'content_types' => 'name',
                 'limit' => 1,
             ])
@@ -125,8 +126,8 @@ class BoxFile extends Box implements FileContract
     public function getDownloadUrl(): string
     {
         $response = $this->boxRequest([
-                'allow_redirects' => false,
-            ])
+            'allow_redirects' => false,
+        ])
             ->get($this->endpoint.$this->id.'/content');
 
         $this->ensureStatus($response, 302, 'Could not determine the Box file download URL.');
@@ -145,15 +146,16 @@ class BoxFile extends Box implements FileContract
      */
     public function contents(): string
     {
-        $fileInfo = $this->info();
         $response = $this->boxRequest()
-            ->sink($this->storagePath.$fileInfo->name)
             ->get($this->endpoint.$this->id.'/content');
+
         if ($response->noContent()) {
             throw ResourceNotFoundException::make('The file information was not found.');
         }
 
-        return $response;
+        $this->ensureSuccessful($response, 'Could not read the Box file contents.');
+
+        return $response->body();
     }
 
     /**
@@ -258,8 +260,7 @@ class BoxFile extends Box implements FileContract
     public function delete(): Response
     {
         $response = $this->boxRequest()
-            ->delete($this->endpoint.$this->id)
-            ;
+            ->delete($this->endpoint.$this->id);
 
         $this->ensureStatus($response, 204, 'Could not delete the Box file.');
 

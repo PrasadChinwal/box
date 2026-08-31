@@ -3,15 +3,20 @@
 namespace PrasadChinwal\Box;
 
 use Generator;
-use Illuminate\Contracts\Filesystem\FileNotFoundException;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 use League\Flysystem\ChecksumProvider;
 use League\Flysystem\Config;
 use League\Flysystem\DirectoryAttributes;
 use League\Flysystem\FileAttributes;
 use League\Flysystem\FilesystemAdapter;
 use League\Flysystem\PathPrefixer;
+use League\Flysystem\UnableToCopyFile;
+use League\Flysystem\UnableToCreateDirectory;
+use League\Flysystem\UnableToDeleteDirectory;
+use League\Flysystem\UnableToDeleteFile;
+use League\Flysystem\UnableToMoveFile;
+use League\Flysystem\UnableToReadFile;
+use League\Flysystem\UnableToRetrieveMetadata;
+use League\Flysystem\UnableToWriteFile;
 use League\MimeTypeDetection\FinfoMimeTypeDetector;
 use League\MimeTypeDetection\MimeTypeDetector;
 use PrasadChinwal\Box\Exceptions\OperationException;
@@ -19,427 +24,399 @@ use PrasadChinwal\Box\Facades\Box;
 
 class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
 {
-    protected ?string $folderId = null;
-
     protected PathPrefixer $prefixer;
 
     protected MimeTypeDetector $mimeTypeDetector;
 
-    protected $file = null;
-
     public function __construct(
+        protected string $folderId = '0',
         string $prefix = '',
-        ?MimeTypeDetector $mimeTypeDetector = null
+        ?MimeTypeDetector $mimeTypeDetector = null,
     ) {
-        $this->folderId = config('box.folder_id');
         $this->prefixer = new PathPrefixer($prefix);
-        $this->mimeTypeDetector = $mimeTypeDetector ?: new FinfoMimeTypeDetector();
+        $this->mimeTypeDetector = $mimeTypeDetector ?: new FinfoMimeTypeDetector;
     }
 
-    public function inFolder(string $id): void
-    {
-        $this->folderId = $id;
-    }
-
-    /**
-     * Checks if a file exists.
-     *
-     * @param  string  $id  The ID of the file.
-     * @return bool Returns true if the file exists, false otherwise.
-     *
-     * @throws \Exception Throws an exception if an error occurs while checking the file's existence.
-     */
-    public function fileExists(string $id): bool
+    public function fileExists(string $path): bool
     {
         try {
-            $file = Box::file()->search(Str::before($id, '.'));
-
-            return ! empty($file?->id);
-        } catch (\Exception $exception) {
+            return $this->findFileEntry($path) !== null;
+        } catch (\Throwable) {
             return false;
         }
     }
 
-    /**
-     * Checks if a directory exists.
-     *
-     * @param  string  $id  The ID of the directory.
-     * @return bool Returns true if the directory exists, false otherwise.
-     *
-     * @throws \Exception Throws an exception if an error occurs while checking the directory's existence.
-     */
-    public function directoryExists(string $id): bool
+    public function directoryExists(string $path): bool
     {
         try {
-            $folder = Box::folder()
-                ->whereId(\config('box.folder_id'))
-                ->info();
+            if ($this->normalizePath($path) === '') {
+                return true;
+            }
 
-            return ! empty($folder?->id);
-        } catch (\Exception $exception) {
+            return $this->resolveFolderIdForPath($this->normalizePath($path)) !== null;
+        } catch (\Throwable) {
             return false;
         }
     }
 
-    /**
-     * Writes contents to a file stream.
-     *
-     * @param  string  $path  The path where the file will be written.
-     * @param  resource  $contents  The contents to be written to the file.
-     * @param  Config  $config  The configuration object.
-     *
-     * @throws \Exception Throws an exception if an error occurs while writing the file.
-     */
-    public function writeStream(string $path, $contents, Config $config): void
-    {
-        try {
-            Box::file()
-                ->inFolder($this->folderId)
-                ->write(filepath: $path, contents: $contents);
-        } catch (\Exception $exception) {
-            throw new \Exception('Could not upload your file! '.$exception->getMessage());
-        }
-    }
-
-    /**
-     * Writes contents to a file stream.
-     *
-     * @throws \Exception
-     */
     public function write(string $path, string $contents, Config $config): void
     {
         try {
+            ['directory' => $directory, 'filename' => $filename] = $this->parsePath($path);
+            $folderId = $this->resolveFolderIdForPath($directory, create: true);
+
             Box::file()
-                ->inFolder($this->folderId)
-                ->write(filepath: $path, contents: $contents);
-        } catch (\Exception $exception) {
-            throw new \Exception('Could not upload your file!');
+                ->inFolder($folderId)
+                ->write(filepath: $filename, contents: $contents);
+        } catch (\Throwable $exception) {
+            throw UnableToWriteFile::atLocation($path, $exception->getMessage(), $exception);
         }
     }
 
-    /**
-     * Reads the contents of a file.
-     *
-     * @param  string  $id  The ID of the file.
-     * @return string Returns the contents of the file.
-     *
-     * @throws \Exception Throws an exception if an error occurs while reading the file.
-     */
-    public function read(string $id): string
+    public function writeStream(string $path, $contents, Config $config): void
+    {
+        $this->write($path, stream_get_contents($contents), $config);
+    }
+
+    public function read(string $path): string
     {
         try {
-            return Box::file()->whereId($id)->contents();
-        } catch (FileNotFoundException $exception) {
-            throw new \Exception('Could not find the file!');
-        } catch (\Exception $exception) {
-            throw new \Exception('Could not read your file!');
+            $file = $this->findFileEntry($path);
+
+            if ($file === null) {
+                throw UnableToReadFile::fromLocation($path, 'File not found.');
+            }
+
+            return Box::file()->whereId($file['id'])->contents();
+        } catch (UnableToReadFile $exception) {
+            throw $exception;
+        } catch (\Throwable $exception) {
+            throw UnableToReadFile::fromLocation($path, $exception->getMessage(), $exception);
         }
     }
 
-    /**
-     * Reads the contents of a file as a stream.
-     *
-     * @throws \Exception
-     */
-    public function readStream(string $path): mixed
+    public function readStream(string $path)
     {
-        if (Str::contains($path, '/')) {
-            $path = Str::after($path, '/');
-        }
-        try {
-            $file = Box::file()->search($path);
+        $contents = $this->read($path);
+        $stream = fopen('php://temp', 'r+');
 
-            return Box::file()->whereId($file->id)->contents();
-        } catch (\Exception $exception) {
-            throw new \Exception("Could not read your file $path!");
+        if ($stream === false) {
+            throw UnableToReadFile::fromLocation($path, 'Unable to open stream.');
         }
+
+        fwrite($stream, $contents);
+        rewind($stream);
+
+        return $stream;
     }
 
-    /**
-     * Deletes a directory and all its contents recursively.
-     *
-     * @param  string  $id  The ID of the directory to delete.
-     *
-     * @throws \Exception Throws an exception if an error occurs while deleting the directory.
-     */
-    public function deleteDirectory(string $id): void
-    {
-        try {
-            Box::folder()->whereId($id)->delete(recursive: true);
-        } catch (\Exception $exception) {
-            throw new \Exception('Could not delete your folder!');
-        }
-    }
-
-    /**
-     * Deletes a file.
-     *
-     * @param  string  $path  The ID of the file to delete.
-     *
-     * @throws \Exception Throws an exception if an error occurs while deleting the file.
-     */
     public function delete(string $path): void
     {
-        if (Str::contains($path, '/')) {
-            $path = Str::after($path, '/');
-        }
         try {
-            $file = Box::file()->search($path);
-            Box::file()->whereId($file->id)->delete();
-        } catch (\Exception $exception) {
-            throw new \Exception('Could not delete your file!');
+            $file = $this->findFileEntry($path);
+
+            if ($file === null) {
+                throw UnableToDeleteFile::atLocation($path, 'File not found.');
+            }
+
+            Box::file()->whereId($file['id'])->delete();
+        } catch (UnableToDeleteFile $exception) {
+            throw $exception;
+        } catch (\Throwable $exception) {
+            throw UnableToDeleteFile::atLocation($path, $exception->getMessage(), $exception);
         }
     }
 
-    /**
-     * Creates a directory in Box.
-     *
-     * @param  string  $name  The name of the directory to be created.
-     * @param  Config  $config  The configuration object.
-     *
-     * @throws \Exception Throws an exception if an error occurs while creating the directory.
-     */
-    public function createDirectory(string $name, Config $config): void
+    public function deleteDirectory(string $path): void
     {
         try {
-            Box::folder()->create([
-                'name' => $name,
-                'parent' => [
-                    'id' => $this->folderId ?? (string) config('box.folder_id', 0),
-                ],
-            ]);
-        } catch (\Exception $exception) {
-            throw OperationException::fromThrowable('Could not create folder!', $exception);
+            $folderId = $this->resolveFolderIdForPath($this->normalizePath($path));
+
+            if ($folderId === null) {
+                throw UnableToDeleteDirectory::atLocation($path, 'Directory not found.');
+            }
+
+            Box::folder()->whereId($folderId)->delete(recursive: true);
+        } catch (UnableToDeleteDirectory $exception) {
+            throw $exception;
+        } catch (\Throwable $exception) {
+            throw UnableToDeleteDirectory::atLocation($path, $exception->getMessage(), $exception);
         }
     }
 
-    /**
-     * Sets the visibility of a file or directory.
-     *
-     * @param  string  $path  The path of the file or directory.
-     * @param  string  $visibility  The visibility to set ('public', 'private', 'default').
-     *
-     * @throws \Exception Throws an exception indicating that setting visibility is not supported yet.
-     */
+    public function createDirectory(string $path, Config $config): void
+    {
+        try {
+            $this->resolveFolderIdForPath($this->normalizePath($path), create: true);
+        } catch (\Throwable $exception) {
+            throw UnableToCreateDirectory::atLocation($path, $exception->getMessage(), $exception);
+        }
+    }
+
     public function setVisibility(string $path, string $visibility): void
     {
-        throw new \Exception('Not supported yet!');
+        throw UnableToRetrieveMetadata::visibility($path, 'Setting visibility is not supported.');
     }
 
-    /**
-     * @throws \Exception
-     */
     public function visibility(string $path): FileAttributes
     {
-        throw new \Exception('Not supported yet!');
+        throw UnableToRetrieveMetadata::visibility($path, 'Retrieving visibility is not supported.');
     }
 
-    /**
-     * @throws \Exception
-     */
-    public function fileSize(string $id): FileAttributes
+    public function fileSize(string $path): FileAttributes
     {
         try {
-            $box = Box::file();
-            $file = $box->search(Str::before($id, '.'));
+            $file = $this->findFileEntry($path);
 
-            // This is required in order to download the file from box to local storage.
+            if ($file === null) {
+                throw UnableToRetrieveMetadata::fileSize($path, 'File not found.');
+            }
+
             return new FileAttributes(
-                path: $box->storagePath.$id,
-                fileSize: $file->size,
-                mimeType: $this->getMimeType($box->storagePath.$file->name),
+                $this->normalizePath($path),
+                $file['size'] ?? null,
             );
-        } catch (\Exception $exception) {
-            throw new \Exception('Could not get file size!'.$exception->getMessage());
+        } catch (UnableToRetrieveMetadata $exception) {
+            throw $exception;
+        } catch (\Throwable $exception) {
+            throw UnableToRetrieveMetadata::fileSize($path, $exception->getMessage(), $exception);
         }
     }
 
-    /**
-     * @throws \Exception
-     */
     public function mimeType(string $path): FileAttributes
     {
-        if (Str::contains($path, '/')) {
-            $path = Str::after($path, '/');
-        }
         try {
-            $box = Box::file();
-            $file = $box->search(Str::before($path, '.'));
+            $file = $this->findFileEntry($path);
+
+            if ($file === null) {
+                throw UnableToRetrieveMetadata::mimeType($path, 'File not found.');
+            }
 
             return new FileAttributes(
-                $box->storagePath.$path,
+                $this->normalizePath($path),
                 null,
                 null,
                 null,
-                $this->mimeTypeDetector->detectMimeTypeFromPath($box->storagePath.$file->name)
+                $this->mimeTypeDetector->detectMimeTypeFromPath($file['name']),
             );
-        } catch (\Exception $exception) {
-            throw new \Exception('Could not get file mimeType!'.$exception->getMessage());
+        } catch (UnableToRetrieveMetadata $exception) {
+            throw $exception;
+        } catch (\Throwable $exception) {
+            throw UnableToRetrieveMetadata::mimeType($path, $exception->getMessage(), $exception);
         }
     }
 
-    /**
-     * Gets the MIME type of file.
-     *
-     * @param  string  $filePath  The path of the file.
-     * @return string The MIME type of the file.
-     *
-     * @throws \Exception
-     */
-    private function getMimeType(string $filePath): string
-    {
-        try {
-            $box = Box::file();
-            $file = $box->search(Str::before($filePath, '.'));
-        } catch (\Exception $exception) {
-            throw new \Exception('Could not get file mimeType!'.$exception->getMessage());
-        }
-
-        return $this->mimeTypeDetector->detectMimeTypeFromPath($box->storagePath.$file->name);
-    }
-
-    /**
-     * @throws \Exception
-     */
     public function lastModified(string $path): FileAttributes
     {
         try {
-            $box = Box::file();
-            $file = $box->whereId($path)->info();
-        } catch (\Exception $exception) {
-            throw new \Exception('Could not get file last modified! '.$exception->getMessage());
-        }
+            $file = $this->findFileEntry($path);
 
-        return new FileAttributes(
-            $box->storagePath.$path,
-            $file->size,
-            null,
-            strtotime($file->content_modified_at),
-            $this->mimeTypeDetector->detectMimeTypeFromPath($box->storagePath.$file->name)
-        );
-    }
-
-    /**
-     * Lists the contents of a directory.
-     *
-     * @param  bool  $deep  Determines whether to list the contents recursively or not.
-     * @return iterable Returns an iterable collection of directory contents.
-     *
-     * @throws \Exception Throws an exception indicating that the operation is not supported yet.
-     */
-    public function listContents(string $id, bool $deep): iterable
-    {
-        foreach ($this->iterateFolderContents($id, $deep) as $entry) {
-            $storageAttrs = $this->normalizeResponse($entry->toArray());
-
-            // Avoid including the base directory itself
-            if ($storageAttrs->isDir() && $storageAttrs->path() === $id) {
-                continue;
+            if ($file === null) {
+                throw UnableToRetrieveMetadata::lastModified($path, 'File not found.');
             }
-            yield $storageAttrs;
-        }
-    }
 
-    /**
-     * @throws \Exception
-     */
-    protected function iterateFolderContents(string $id = '', bool $deep = false): Generator
-    {
-        try {
-            $result = Box::folder()->whereId($this->folderId)->items();
-        } catch (\Exception $exception) {
-            throw new \Exception('Could not iterate folder contents!');
-        }
+            $timestamp = isset($file['modified_at']) ? strtotime($file['modified_at']) : null;
 
-        yield from $result;
-    }
-
-    /**
-     * Returns the download url for the file.
-     *
-     * @throws \Exception
-     */
-    public function getUrl(string $id): string
-    {
-        try {
-            $file = Box::file()->search($id);
-
-            return Box::file()->whereId($file->id)->getDownloadUrl();
-        } catch (\Exception $exception) {
-            Log::error('Exception: '.$exception->getMessage());
-            throw new \Exception('Could not get file url!');
-        }
-    }
-
-    /**
-     * @return DirectoryAttributes|FileAttributes
-     */
-    protected function normalizeResponse(array $response)
-    {
-        $timestamp = (isset($response['server_modified'])) ? strtotime($response['server_modified']) : null;
-
-        if ($response['type'] === 'folder') {
-            $normalizedPath = ltrim($this->prefixer->stripDirectoryPrefix($response['path_display']), '/');
-
-            return new DirectoryAttributes(
-                $normalizedPath,
+            return new FileAttributes(
+                $this->normalizePath($path),
+                $file['size'] ?? null,
                 null,
-                $timestamp
+                $timestamp,
             );
+        } catch (UnableToRetrieveMetadata $exception) {
+            throw $exception;
+        } catch (\Throwable $exception) {
+            throw UnableToRetrieveMetadata::lastModified($path, $exception->getMessage(), $exception);
+        }
+    }
+
+    public function listContents(string $path, bool $deep): iterable
+    {
+        $directory = $this->normalizePath($path);
+        $folderId = $directory === ''
+            ? $this->rootFolderId()
+            : $this->resolveFolderIdForPath($directory);
+
+        if ($folderId === null) {
+            return;
         }
 
-        $normalizedPath = ltrim($this->prefixer->stripPrefix($response['id']), '/');
-
-        return new FileAttributes(
-            $normalizedPath,
-            $response['size'] ?? null,
-            null,
-            $timestamp,
-            $this->mimeTypeDetector->detectMimeTypeFromPath($normalizedPath)
-        );
+        yield from $this->iterateFolderContents($folderId, $directory, $deep);
     }
 
-    protected function applyPathPrefix($path): string
-    {
-        return '/'.trim($this->prefixer->prefixPath($path), '/');
-    }
-
-    /**
-     * @throws \Exception
-     */
     public function move(string $source, string $destination, Config $config): void
     {
-        throw new \Exception('Not supported yet!');
+        try {
+            $sourceFile = $this->findFileEntry($source);
+
+            if ($sourceFile === null) {
+                throw UnableToMoveFile::because('Source file not found.', $source, $destination);
+            }
+
+            ['directory' => $destinationDirectory, 'filename' => $destinationFilename] = $this->parsePath($destination);
+            $destinationFolderId = $this->resolveFolderIdForPath($destinationDirectory, create: true);
+
+            Box::file()->whereId($sourceFile['id'])->update([
+                'name' => $destinationFilename,
+                'parent' => ['id' => $destinationFolderId],
+            ]);
+        } catch (UnableToMoveFile $exception) {
+            throw $exception;
+        } catch (\Throwable $exception) {
+            throw UnableToMoveFile::fromLocationTo($source, $destination, $exception);
+        }
     }
 
-    /**
-     * @throws \Exception
-     */
     public function copy(string $source, string $destination, Config $config): void
     {
         try {
-            $attributes = [
-                'parent' => [
-                    'id' => $destination, // The ID of folder to copy the file to.
-                ],
-            ];
-            Box::file()->whereId($source)->copy($attributes);
-        } catch (\Exception $exception) {
-            throw new \Exception('Could not get file info!');
+            $sourceFile = $this->findFileEntry($source);
+
+            if ($sourceFile === null) {
+                throw UnableToCopyFile::because('Source file not found.', $source, $destination);
+            }
+
+            ['directory' => $destinationDirectory, 'filename' => $destinationFilename] = $this->parsePath($destination);
+            $destinationFolderId = $this->resolveFolderIdForPath($destinationDirectory, create: true);
+
+            Box::file()->whereId($sourceFile['id'])->copy([
+                'name' => $destinationFilename,
+                'parent' => ['id' => $destinationFolderId],
+            ]);
+        } catch (UnableToCopyFile $exception) {
+            throw $exception;
+        } catch (\Throwable $exception) {
+            throw UnableToCopyFile::fromLocationTo($source, $destination, $exception);
         }
     }
 
-    /**
-     * Calculates the checksum of a file.
-     *
-     * @param  string  $path  The path to the file.
-     * @param  Config  $config  The configuration instance.
-     * @return string The checksum of the file.
-     *
-     * @throws \Exception Throws an exception indicating that this operation is not supported yet.
-     */
     public function checksum(string $path, Config $config): string
     {
-        throw new \Exception('Not supported yet!');
+        throw new OperationException('Checksums are not supported for Box files.');
+    }
+
+    protected function iterateFolderContents(string $folderId, string $prefix, bool $deep): Generator
+    {
+        $items = $this->folderEntries($folderId);
+
+        foreach ($items as $entry) {
+            $entryPath = ltrim($prefix === '' ? $entry['name'] : "{$prefix}/{$entry['name']}", '/');
+
+            yield $this->normalizeResponse($entry, $entryPath);
+
+            if ($deep && $entry['type'] === 'folder') {
+                yield from $this->iterateFolderContents((string) $entry['id'], $entryPath, true);
+            }
+        }
+    }
+
+    protected function normalizeResponse(array $response, string $path): DirectoryAttributes|FileAttributes
+    {
+        $timestamp = isset($response['modified_at']) ? strtotime($response['modified_at']) : null;
+
+        if ($response['type'] === 'folder') {
+            return new DirectoryAttributes($path, null, $timestamp);
+        }
+
+        return new FileAttributes(
+            $path,
+            $response['size'] ?? null,
+            null,
+            $timestamp,
+            $this->mimeTypeDetector->detectMimeTypeFromPath($response['name']),
+        );
+    }
+
+    protected function parsePath(string $path): array
+    {
+        $path = $this->normalizePath($path);
+        $segments = $path === '' ? [] : explode('/', $path);
+        $filename = (string) array_pop($segments);
+
+        return [
+            'directory' => implode('/', $segments),
+            'filename' => $filename,
+        ];
+    }
+
+    protected function normalizePath(string $path): string
+    {
+        return ltrim($this->prefixer->prefixPath($path), '/');
+    }
+
+    protected function rootFolderId(): string
+    {
+        return (string) $this->folderId;
+    }
+
+    protected function findFileEntry(string $path): ?array
+    {
+        ['directory' => $directory, 'filename' => $filename] = $this->parsePath($path);
+
+        if ($filename === '') {
+            return null;
+        }
+
+        $folderId = $directory === ''
+            ? $this->rootFolderId()
+            : $this->resolveFolderIdForPath($directory);
+
+        if ($folderId === null) {
+            return null;
+        }
+
+        return $this->findEntryInFolder($folderId, $filename, 'file');
+    }
+
+    protected function resolveFolderIdForPath(string $directory, bool $create = false): ?string
+    {
+        $directory = trim($directory, '/');
+
+        if ($directory === '') {
+            return $this->rootFolderId();
+        }
+
+        $folderId = $this->rootFolderId();
+
+        foreach (explode('/', $directory) as $segment) {
+            $entry = $this->findEntryInFolder($folderId, $segment, 'folder');
+
+            if ($entry === null) {
+                if (! $create) {
+                    return null;
+                }
+
+                $created = Box::folder()->create([
+                    'name' => $segment,
+                    'parent' => ['id' => $folderId],
+                ]);
+
+                $folderId = (string) $created->get('id');
+
+                continue;
+            }
+
+            $folderId = (string) $entry['id'];
+        }
+
+        return $folderId;
+    }
+
+    protected function findEntryInFolder(string $folderId, string $name, ?string $type = null): ?array
+    {
+        foreach ($this->folderEntries($folderId) as $entry) {
+            if ($entry['name'] === $name && ($type === null || $entry['type'] === $type)) {
+                return $entry;
+            }
+        }
+
+        return null;
+    }
+
+    protected function folderEntries(string $folderId): array
+    {
+        $items = Box::folder()->whereId($folderId)->items();
+
+        return $items->get('entries', []);
     }
 }
