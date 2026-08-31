@@ -5,7 +5,6 @@ namespace PrasadChinwal\Box\Traits;
 use Exception;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 use PrasadChinwal\Box\Box;
 
@@ -34,7 +33,7 @@ trait CanShare
             throw new ValidationException('Please provide shared link for file/folder!');
         }
 
-        return Http::withToken($this->getAccessToken())
+        return $this->boxRequest()
             ->get($this->sharedLinkUrl, [
                 'shared_link' => $this->sharedLink,
                 'shared_link_password' => $this->sharedLinkPassword,
@@ -55,7 +54,7 @@ trait CanShare
             throw new ValidationException('Please provide fileId of file/folder!');
         }
 
-        return Http::withToken($this->getAccessToken())
+        return $this->boxRequest()
             ->get($this->endpoint.$this->id)
             ->throwUnlessStatus(200)
             ->collect();
@@ -69,8 +68,7 @@ trait CanShare
      */
     public function createSharedLink(array $attributes): Collection
     {
-        return Http::asForm()
-            ->withToken($this->getAccessToken())
+        return $this->formRequest()
             ->asJson()
             ->put($this->endpoint.$this->id, $attributes)
             ->throwUnlessStatus(200)
@@ -89,8 +87,7 @@ trait CanShare
             'attributes' => json_encode(['shared_link' => null]),
         ];
 
-        return Http::asForm()
-            ->withToken($this->getAccessToken())
+        return $this->formRequest()
             ->asJson()
             ->put($this->endpoint.$this->id, $attributes)
             ->throwUnlessStatus(200)

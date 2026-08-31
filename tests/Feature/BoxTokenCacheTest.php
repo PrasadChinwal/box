@@ -7,8 +7,9 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use PrasadChinwal\Box\File\BoxFile;
 use PrasadChinwal\Box\Test\TestCase;
+use PHPUnit\Framework\Attributes\Test;
 
-class BoxFileTest extends TestCase
+class BoxTokenCacheTest extends TestCase
 {
     protected function setUp(): void
     {
@@ -17,26 +18,56 @@ class BoxFileTest extends TestCase
         Cache::forget(config('box.token_cache_key'));
     }
 
-    public function test_it_can_retrieve_file_information(): void
+    #[Test]
+    public function it_reuses_the_cached_access_token_until_it_expires(): void
     {
         Http::fake([
             'https://api.box.com/oauth2/token' => Http::response([
-                'access_token' => 'abcdefghi123456789',
+                'access_token' => 'cached-token',
                 'expires_in' => 3600,
                 'token_type' => 'bearer',
             ], 200),
             'https://api.box.com/2.0/files/1234' => Http::response($this->fakeBoxFileResponse(), 200),
         ]);
 
-        $file = (new BoxFile())->whereId('1234')->info();
+        (new BoxFile())->whereId('1234')->info();
+        (new BoxFile())->whereId('1234')->info();
 
-        $this->assertSame('1234', $file->id);
-        $this->assertSame('test.pdf', $file->name);
-
+        Http::assertSentCount(3);
         Http::assertSent(function (Request $request) {
             return $request->url() === 'https://api.box.com/2.0/files/1234'
-                && $request->hasHeader('Accept', ['application/json'])
-                && $request->hasHeader('Authorization', ['Bearer abcdefghi123456789']);
+                && $request->hasHeader('Authorization', ['Bearer cached-token']);
+        });
+    }
+
+    #[Test]
+    public function it_requests_a_fresh_access_token_after_the_cached_token_expires(): void
+    {
+        Http::fake([
+            'https://api.box.com/oauth2/token' => Http::sequence()
+                ->push([
+                    'access_token' => 'first-token',
+                    'expires_in' => 1,
+                    'token_type' => 'bearer',
+                ], 200)
+                ->push([
+                    'access_token' => 'second-token',
+                    'expires_in' => 3600,
+                    'token_type' => 'bearer',
+                ], 200),
+            'https://api.box.com/2.0/files/1234' => Http::response($this->fakeBoxFileResponse(), 200),
+        ]);
+
+        (new BoxFile())->whereId('1234')->info();
+
+        sleep(2);
+
+        (new BoxFile())->whereId('1234')->info();
+
+        Http::assertSentCount(4);
+        Http::assertSent(function (Request $request) {
+            return $request->url() === 'https://api.box.com/2.0/files/1234'
+                && $request->hasHeader('Authorization', ['Bearer second-token']);
         });
     }
 

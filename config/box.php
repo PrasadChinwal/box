@@ -52,6 +52,34 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Access Token Cache
+    |--------------------------------------------------------------------------
+    |
+    | Access tokens are cached and reused until they are close to expiring.
+    | The buffer prevents using a token that is about to expire mid-request.
+    |
+    */
+
+    'token_cache_key' => env('BOX_TOKEN_CACHE_KEY', 'box.access_token'),
+    'token_expiry_buffer' => (int) env('BOX_TOKEN_EXPIRY_BUFFER', 60),
+
+    /*
+    |--------------------------------------------------------------------------
+    | HTTP Client Options
+    |--------------------------------------------------------------------------
+    |
+    | Shared HTTP settings used for Box API requests. Retries are disabled
+    | by default and can be enabled when transient upstream failures are
+    | expected in your environment.
+    |
+    */
+
+    'request_timeout' => (int) env('BOX_REQUEST_TIMEOUT', 30),
+    'request_retry_times' => (int) env('BOX_REQUEST_RETRY_TIMES', 0),
+    'request_retry_sleep' => (int) env('BOX_REQUEST_RETRY_SLEEP', 100),
+
+    /*
+    |--------------------------------------------------------------------------
     | BOX ROOT FOLDER ID
     |--------------------------------------------------------------------------
     | This is the folder id of the root folder where transactions will occur.

@@ -5,7 +5,6 @@ namespace PrasadChinwal\Box\Folder;
 use Exception;
 use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Http;
 use PrasadChinwal\Box\Box;
 use PrasadChinwal\Box\Contracts\FolderContract;
 use PrasadChinwal\Box\Traits\CanCollaborate;
@@ -31,7 +30,7 @@ class BoxFolder extends Box implements FolderContract
     /**
      * @throws Exception
      */
-    public function whereId($id): static
+    public function whereId(string $id): static
     {
         $this->id = $id;
 
@@ -45,7 +44,7 @@ class BoxFolder extends Box implements FolderContract
      */
     public function info(): Collection
     {
-        return Http::withToken($this->getAccessToken())
+        return $this->boxRequest()
             ->get($this->endpoint.$this->id)
             ->throwUnlessStatus(200)
             ->collect();
@@ -58,7 +57,7 @@ class BoxFolder extends Box implements FolderContract
      */
     public function items(): Collection
     {
-        return Http::withToken($this->getAccessToken())
+        return $this->boxRequest()
             ->get($this->endpoint.$this->id.'/items')
             ->throwUnlessStatus(200)
             ->collect();
@@ -71,9 +70,8 @@ class BoxFolder extends Box implements FolderContract
      */
     public function create(array $attributes): Collection
     {
-        return Http::asJson()
-            ->withToken($this->getAccessToken())
-            ->post($this->endpoint.$this->id, $attributes)
+        return $this->jsonRequest()
+            ->post($this->endpoint, $attributes)
             ->throwUnlessStatus(201)
             ->collect();
     }
@@ -85,9 +83,8 @@ class BoxFolder extends Box implements FolderContract
      */
     public function copy(array $attributes): Collection
     {
-        return Http::asJson()
-            ->withToken($this->getAccessToken())
-            ->post($this->endpoint.$this->id, $attributes)
+        return $this->jsonRequest()
+            ->post($this->endpoint.$this->id.'/copy', $attributes)
             ->throwUnlessStatus(201)
             ->collect();
     }
@@ -99,8 +96,7 @@ class BoxFolder extends Box implements FolderContract
      */
     public function update(array $attributes): Collection
     {
-        return Http::asJson()
-            ->withToken($this->getAccessToken())
+        return $this->jsonRequest()
             ->put($this->endpoint.$this->id, $attributes)
             ->throwUnlessStatus(200)
             ->collect();
@@ -111,10 +107,12 @@ class BoxFolder extends Box implements FolderContract
      *
      * @throws Exception
      */
-    public function delete(bool $recursive = false): Response|Exception
+    public function delete(bool $recursive = false): Response
     {
-        Http::withToken($this->getAccessToken())
-            ->delete($this->endpoint.$this->id.'?recursive='.$recursive)
+        $this->boxRequest()
+            ->delete($this->endpoint.$this->id, [
+                'recursive' => $recursive,
+            ])
             ->throwUnlessStatus(204);
 
         return new Response('Folder has been deleted successfully');

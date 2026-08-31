@@ -4,7 +4,6 @@ namespace PrasadChinwal\Box;
 
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\Http;
 
 class BoxCollaboration extends Box
 {
@@ -29,8 +28,7 @@ class BoxCollaboration extends Box
      */
     public function get(): \Illuminate\Support\Collection
     {
-        return Http::withToken($this->getAccessToken())
-            ->asJson()
+        return $this->jsonRequest()
             ->get($this->endpoint.$this->id)
             ->throwUnlessStatus(200)
             ->collect();
@@ -43,8 +41,7 @@ class BoxCollaboration extends Box
      */
     public function create(array $attributes): \Illuminate\Support\Collection
     {
-        return Http::withToken($this->getAccessToken())
-            ->asJson()
+        return $this->jsonRequest()
             ->post($this->endpoint, $attributes)
             ->throwUnlessStatus(201)
             ->collect();
@@ -57,8 +54,7 @@ class BoxCollaboration extends Box
      */
     public function update(array $attributes): \Illuminate\Support\Collection
     {
-        return Http::withToken($this->getAccessToken())
-            ->asJson()
+        return $this->jsonRequest()
             ->put($this->endpoint.$this->id, $attributes)
             ->throwUnlessStatus(200)
             ->collect();
@@ -71,8 +67,7 @@ class BoxCollaboration extends Box
      */
     public function delete(): Response
     {
-        Http::withToken($this->getAccessToken())
-            ->asJson()
+        $this->jsonRequest()
             ->delete($this->endpoint.$this->id)
             ->throwUnlessStatus(204);
 

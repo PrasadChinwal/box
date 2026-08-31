@@ -3,7 +3,6 @@
 namespace PrasadChinwal\Box\Traits;
 
 use Illuminate\Http\Client\RequestException;
-use Illuminate\Support\Facades\Http;
 
 trait CanWatermark
 {
@@ -16,8 +15,7 @@ trait CanWatermark
      */
     public function getWatermark(): \Illuminate\Support\Collection
     {
-        return Http::withToken($this->getAccessToken())
-            ->asJson()
+        return $this->jsonRequest()
             ->get($this->endpoint.$this->id.'/watermark')
             ->throwUnlessStatus(200)
             ->collect();
@@ -29,8 +27,7 @@ trait CanWatermark
      */
     public function createWatermark(): \Illuminate\Support\Collection
     {
-        return Http::withToken($this->getAccessToken())
-            ->asJson()
+        return $this->jsonRequest()
             ->put($this->endpoint.$this->id.'/watermark', [
                 'watermark' => [
                     'imprint' => 'default',
@@ -46,8 +43,7 @@ trait CanWatermark
      */
     public function removeWatermark(): \Illuminate\Support\Collection
     {
-        return Http::withToken($this->getAccessToken())
-            ->asJson()
+        return $this->jsonRequest()
             ->delete($this->endpoint.$this->id.'/watermark')
             ->throwUnlessStatus(204)
             ->collect();

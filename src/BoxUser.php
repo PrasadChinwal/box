@@ -4,9 +4,10 @@ namespace PrasadChinwal\Box;
 
 use Exception;
 use Illuminate\Http\Client\RequestException;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Response;
 use PrasadChinwal\Box\Dto\User;
+use PrasadChinwal\Box\Exceptions\OperationException;
 
 class BoxUser extends Box
 {
@@ -32,14 +33,14 @@ class BoxUser extends Box
      *
      * @throws RequestException
      */
-    public function all()
+    public function all(): Collection
     {
-        $response = Http::withToken($this->getAccessToken())
+        $response = $this->boxRequest()
             ->get($this->endpoint)
             ->throwUnlessStatus(200)
             ->collect('entries');
-        return json_encode($response);
-        return User::collection($response);
+
+        return User::collect($response, Collection::class);
     }
 
     /**
@@ -47,13 +48,13 @@ class BoxUser extends Box
      *
      * @throws RequestException
      */
-    public function get()
+    public function get(): User
     {
-        $response = Http::withToken($this->getAccessToken())
+        $response = $this->boxRequest()
             ->get($this->endpoint.'me')
             ->throwUnlessStatus(200)
             ->collect();
-        return json_encode($response);
+
         return User::from($response);
     }
 
@@ -64,7 +65,7 @@ class BoxUser extends Box
      */
     public function memberships(): \Illuminate\Support\Collection
     {
-        return Http::withToken($this->getAccessToken())
+        return $this->boxRequest()
             ->get($this->endpoint.$this->id.'/memberships')
             ->throwUnlessStatus(200)
             ->collect();
@@ -75,13 +76,13 @@ class BoxUser extends Box
      *
      * @throws RequestException
      */
-    public function first()
+    public function first(): User
     {
-        $response = Http::withToken($this->getAccessToken())
+        $response = $this->boxRequest()
             ->get($this->endpoint.$this->id)
             ->throwUnlessStatus(200)
             ->collect();
-        return json_encode($response);
+
         return User::from($response);
     }
 
@@ -92,16 +93,14 @@ class BoxUser extends Box
      */
     public function delete(bool $force=false, bool $notify = false): Response
     {
-        $response = Http::withToken($this->getAccessToken())
+        $this->boxRequest()
             ->delete($this->endpoint.$this->id, [
                 'force' => $force,
                 'notify' => $notify
             ])
             ->throwUnlessStatus(204);
-        if($response->status() === 204) {
-            return new Response('Successfully deleted the User!');
-        }
-        return new Response('Could not delete the user!');
+
+        return new Response('Successfully deleted the User!');
     }
 
     /**
@@ -114,8 +113,7 @@ class BoxUser extends Box
      */
     public function transfer(string $from, string $to)
     {
-        return Http::withToken($this->getAccessToken())
-            ->asJson()
+        return $this->jsonRequest()
             ->put($this->endpoint.$from."/folders/0", [
                 'owned_by' => [
                     'id' => $to
@@ -127,17 +125,18 @@ class BoxUser extends Box
     /**
      * @throws RequestException
      */
-    public function findByEmail(string $email)
+    public function findByEmail(string $email): Collection
     {
-        return Http::withToken($this->getAccessToken())
+        $response = $this->boxRequest()
             ->get($this->endpoint, [
                 'filter_term' => $email,
                 'limit' => 10,
                 'user_type' => 'all'
             ])
             ->throwUnlessStatus(200)
-        ->collect('entries');
-//        return User::collection($result);
+            ->collect('entries');
+
+        return User::collect($response, Collection::class);
     }
 
     /**
@@ -150,15 +149,7 @@ class BoxUser extends Box
         try {
             return $this->transfer($transferFrom, $transferTo);
         } catch (Exception $exception) {
-            dump("Error during transferring user data!");
-            dd($exception);
+            throw OperationException::fromThrowable('Could not deprovision the Box user.', $exception);
         }
-
-//        try {
-//            $delete = $this->delete();
-//        } catch (Exception $exception) {
-//            dump("Error during Deleting a user");
-//            dd($exception);
-//        }
     }
 }

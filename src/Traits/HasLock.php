@@ -3,7 +3,6 @@
 namespace PrasadChinwal\Box\Traits;
 
 use Illuminate\Http\Client\RequestException;
-use Illuminate\Support\Facades\Http;
 
 trait HasLock
 {
@@ -14,8 +13,7 @@ trait HasLock
      */
     public function getLocks(): \Illuminate\Support\Collection
     {
-        return Http::withToken($this->getAccessToken())
-            ->asJson()
+        return $this->jsonRequest()
             ->get($this->lockEndpoint, [
                 'folder_id' => $this->id,
             ])
@@ -30,8 +28,7 @@ trait HasLock
      */
     public function lock(array $attributes): \Illuminate\Support\Collection
     {
-        return Http::withToken($this->getAccessToken())
-            ->asJson()
+        return $this->jsonRequest()
             ->post($this->lockEndpoint, $attributes)
             ->throwUnlessStatus(200)
             ->collect();
@@ -44,8 +41,7 @@ trait HasLock
      */
     public function unlock(string $lockid): \Illuminate\Support\Collection
     {
-        return Http::withToken($this->getAccessToken())
-            ->asJson()
+        return $this->jsonRequest()
             ->delete($this->lockEndpoint.$lockid)
             ->throwUnlessStatus(204)
             ->collect();

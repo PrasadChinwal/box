@@ -9,6 +9,15 @@ A wrapper to integrate Box Api's to a Laravel Application.
 - Run `php artisan vendor:publish` and publish the config file.
 - Edit the `config/box.php` file to configure your settings. To know more about configuration visit [https://developer.box.com/guides/](https://developer.box.com/guides/)
 
+Access tokens are cached automatically and reused until they are close to expiring. You can tune this behavior with:
+- `BOX_TOKEN_CACHE_KEY` to control where the token payload is stored.
+- `BOX_TOKEN_EXPIRY_BUFFER` to refresh the token a little before the provider-reported expiry time.
+
+Shared HTTP behavior can also be configured with:
+- `BOX_REQUEST_TIMEOUT` to control the request timeout in seconds.
+- `BOX_REQUEST_RETRY_TIMES` to retry transient request failures.
+- `BOX_REQUEST_RETRY_SLEEP` to control the delay between retries in milliseconds.
+
 
 ## Usage:
 

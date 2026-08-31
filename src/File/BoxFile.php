@@ -7,10 +7,11 @@ use Illuminate\Contracts\Filesystem\FileNotFoundException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 use PrasadChinwal\Box\Box;
 use PrasadChinwal\Box\Contracts\FileContract;
+use PrasadChinwal\Box\Exceptions\OperationException;
+use PrasadChinwal\Box\Exceptions\ResourceNotFoundException;
 use PrasadChinwal\Box\Traits\CanCollaborate;
 use PrasadChinwal\Box\Traits\CanShare;
 use PrasadChinwal\Box\Traits\CanWatermark;
@@ -66,7 +67,7 @@ class BoxFile extends Box implements FileContract
      */
     public function search(string $filename): \PrasadChinwal\Box\Dto\BoxFile
     {
-        $search = Http::withToken($this->getAccessToken())
+        $search = $this->boxRequest()
             ->get('https://api.box.com/2.0/search', [
                 'query' => $filename,
                 'ancestor_folder_id' => config('box.folder_id'),
@@ -76,7 +77,7 @@ class BoxFile extends Box implements FileContract
             ->throwUnlessStatus(200)
             ->collect('entries');
 
-        throw_if($search->isEmpty(), new FileNotFoundException("File $filename not found"));
+        throw_if($search->isEmpty(), ResourceNotFoundException::make("File {$filename} not found."));
 
         return \PrasadChinwal\Box\Dto\BoxFile::from($search->first());
     }
@@ -88,10 +89,7 @@ class BoxFile extends Box implements FileContract
      */
     public function info(): \PrasadChinwal\Box\Dto\BoxFile
     {
-        dump($this->getAccessToken());
-        dump($this->endpoint.$this->id);
-        dump($this->id);
-        $response = Http::withToken($this->getAccessToken())
+        $response = $this->boxRequest()
             ->get($this->endpoint.$this->id)
             ->throwUnlessStatus(200)
             ->collect();
@@ -107,16 +105,14 @@ class BoxFile extends Box implements FileContract
     public function downloadFile(): BinaryFileResponse
     {
         $fileInfo = $this->info();
-        $response = Http::withToken($this->getAccessToken())
+        $response = $this->boxRequest()
             ->sink(storage_path("/app/{$fileInfo->name}"))
             ->get($this->endpoint.$this->id.'/content');
         if ($response->noContent()) {
-            throw new FileNotFoundException('The file information was not found!');
+            throw ResourceNotFoundException::make('The file information was not found.');
         }
 
-        if (! $response->successful()) {
-            throw new Exception('Could not find File!');
-        }
+        $this->ensureSuccessful($response, 'Could not download the Box file.');
 
         return response()->download(storage_path("/app/{$fileInfo->name}"));
     }
@@ -128,17 +124,15 @@ class BoxFile extends Box implements FileContract
      */
     public function getDownloadUrl(): string
     {
-        $response = Http::withToken($this->getAccessToken())
-            ->withOptions([
+        $response = $this->boxRequest([
                 'allow_redirects' => false,
             ])
             ->get($this->endpoint.$this->id.'/content');
 
-        if ($response->status() !== 302) {
-            throw new Exception('Could not find File!');
-        }
+        $this->ensureStatus($response, 302, 'Could not determine the Box file download URL.');
+
         if (! $response->header('location')) {
-            throw new Exception('File download url not found!');
+            throw new OperationException('File download url not found.');
         }
 
         return $response->header('location');
@@ -152,11 +146,11 @@ class BoxFile extends Box implements FileContract
     public function contents(): string
     {
         $fileInfo = $this->info();
-        $response = Http::withToken($this->getAccessToken())
+        $response = $this->boxRequest()
             ->sink($this->storagePath.$fileInfo->name)
             ->get($this->endpoint.$this->id.'/content');
         if ($response->noContent()) {
-            throw new FileNotFoundException('The file information was not found!');
+            throw ResourceNotFoundException::make('The file information was not found.');
         }
 
         return $response;
@@ -173,7 +167,7 @@ class BoxFile extends Box implements FileContract
             throw new ValidationException('File extension not supported!');
         }
 
-        return Http::withToken($this->getAccessToken())
+        return $this->boxRequest()
             ->get($this->endpoint.$this->id.'/thumbnail'.$extension)
             ->throwUnlessStatus([200, 201])
             ->collect();
@@ -186,17 +180,15 @@ class BoxFile extends Box implements FileContract
      */
     public function copy(array $attributes = []): \PrasadChinwal\Box\Dto\BoxFile
     {
-        $response = Http::asForm()
-            ->withToken($this->getAccessToken())
+        $response = $this->formRequest()
             ->asJson()
             ->post($this->endpoint.$this->id.'/copy', $attributes);
 
         if ($response->noContent()) {
-            throw new Exception('The file information was not found!');
+            throw ResourceNotFoundException::make('The file information was not found.');
         }
-        if (! $response->successful()) {
-            throw new Exception('Could not find File information!');
-        }
+
+        $this->ensureSuccessful($response, 'Could not copy the Box file.');
 
         return \PrasadChinwal\Box\Dto\BoxFile::from($response->collect());
     }
@@ -208,8 +200,7 @@ class BoxFile extends Box implements FileContract
      */
     public function update(array $attributes = []): \PrasadChinwal\Box\Dto\BoxFile
     {
-        $response = Http::asForm()
-            ->withToken($this->getAccessToken())
+        $response = $this->formRequest()
             ->asJson()
             ->put($this->endpoint.$this->id, $attributes)
             ->throwUnlessStatus(200)
@@ -225,8 +216,7 @@ class BoxFile extends Box implements FileContract
      */
     public function create(string $filepath, string $filename, array $attributes = []): Collection
     {
-        return Http::asMultipart()
-            ->withToken($this->getAccessToken())
+        return $this->multipartRequest()
             ->attach('file', file_get_contents($filepath), $filename)
             ->post($this->uploadUrl, $attributes)
             ->throwUnlessStatus(201)
@@ -243,8 +233,7 @@ class BoxFile extends Box implements FileContract
     {
         $filename = basename($filepath);
 
-        $response = Http::asMultipart()
-            ->withToken($this->getAccessToken())
+        $response = $this->multipartRequest()
             ->attach('file', $contents, $filename)
             ->post($this->uploadUrl, [
                 'attributes' => json_encode([
@@ -256,7 +245,7 @@ class BoxFile extends Box implements FileContract
             ])
             ->throwUnlessStatus(201)
             ->collect('entries');
-        throw_if($response->isEmpty(), new Exception('Could not create file'));
+        throw_if($response->isEmpty(), new OperationException('Could not create file in Box.'));
 
         return \PrasadChinwal\Box\Dto\BoxFile::from($response->first());
     }
@@ -268,13 +257,12 @@ class BoxFile extends Box implements FileContract
      */
     public function delete(): Response
     {
-        $response = Http::withToken($this->getAccessToken())
+        $response = $this->boxRequest()
             ->delete($this->endpoint.$this->id)
-            ->throwUnlessStatus(302);
+            ;
 
-        if ($response->noContent()) {
-            return new Response('File has been deleted successfully');
-        }
-        throw new Exception('Could not delete File!');
+        $this->ensureStatus($response, 204, 'Could not delete the Box file.');
+
+        return new Response('File has been deleted successfully');
     }
 }

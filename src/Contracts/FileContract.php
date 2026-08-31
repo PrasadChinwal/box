@@ -21,7 +21,7 @@ interface FileContract
 
     public function createSharedLink(array $attributes): Collection;
 
-    public function thumbnail(string $extension, int $width, int $height): Collection;
+    public function thumbnail(string $extension, ?int $width = null, ?int $height = null): Collection;
 
     public function copy(array $attributes): BoxFile;
 

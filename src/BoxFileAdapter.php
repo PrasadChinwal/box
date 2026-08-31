@@ -14,6 +14,7 @@ use League\Flysystem\FilesystemAdapter;
 use League\Flysystem\PathPrefixer;
 use League\MimeTypeDetection\FinfoMimeTypeDetector;
 use League\MimeTypeDetection\MimeTypeDetector;
+use PrasadChinwal\Box\Exceptions\OperationException;
 use PrasadChinwal\Box\Facades\Box;
 
 class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
@@ -52,6 +53,7 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
     {
         try {
             $file = Box::file()->search(Str::before($id, '.'));
+
             return ! empty($file?->id);
         } catch (\Exception $exception) {
             return false;
@@ -137,8 +139,6 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
     /**
      * Reads the contents of a file as a stream.
      *
-     * @param string $path
-     * @return mixed
      * @throws \Exception
      */
     public function readStream(string $path): mixed
@@ -202,13 +202,14 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
     public function createDirectory(string $name, Config $config): void
     {
         try {
-            $box = Box::folder();
-            if ($this->folderId) {
-                $box->whereId($this->folderId);
-            }
-            $box->createDirectory(attributes: $name);
+            Box::folder()->create([
+                'name' => $name,
+                'parent' => [
+                    'id' => $this->folderId ?? (string) config('box.folder_id', 0),
+                ],
+            ]);
         } catch (\Exception $exception) {
-            throw new \Exception('Could not create folder!');
+            throw OperationException::fromThrowable('Could not create folder!', $exception);
         }
     }
 
@@ -241,7 +242,7 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
         try {
             $box = Box::file();
             $file = $box->search(Str::before($id, '.'));
-            $download = Box::file()->whereId($file->id)->contents();
+
             // This is required in order to download the file from box to local storage.
             return new FileAttributes(
                 path: $box->storagePath.$id,
@@ -280,8 +281,9 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
     /**
      * Gets the MIME type of file.
      *
-     * @param string $filePath The path of the file.
+     * @param  string  $filePath  The path of the file.
      * @return string The MIME type of the file.
+     *
      * @throws \Exception
      */
     private function getMimeType(string $filePath): string
@@ -289,8 +291,7 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
         try {
             $box = Box::file();
             $file = $box->search(Str::before($filePath, '.'));
-        }
-        catch (\Exception $exception) {
+        } catch (\Exception $exception) {
             throw new \Exception('Could not get file mimeType!'.$exception->getMessage());
         }
 
@@ -344,8 +345,6 @@ class BoxFileAdapter implements ChecksumProvider, FilesystemAdapter
      */
     protected function iterateFolderContents(string $id = '', bool $deep = false): Generator
     {
-        $location = $this->applyPathPrefix($id);
-
         try {
             $result = Box::folder()->whereId($this->folderId)->items();
         } catch (\Exception $exception) {

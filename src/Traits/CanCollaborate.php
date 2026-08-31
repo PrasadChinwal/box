@@ -3,7 +3,6 @@
 namespace PrasadChinwal\Box\Traits;
 
 use Illuminate\Http\Client\RequestException;
-use Illuminate\Support\Facades\Http;
 
 trait CanCollaborate
 {
@@ -15,8 +14,7 @@ trait CanCollaborate
      */
     public function getCollaboration(): \Illuminate\Support\Collection
     {
-        return Http::withToken($this->getAccessToken())
-            ->asJson()
+        return $this->jsonRequest()
             ->get($this->endpoint.$this->id.'/collaborations')
             ->throwUnlessStatus(200)
             ->collect();
