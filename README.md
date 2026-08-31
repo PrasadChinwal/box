@@ -18,6 +18,39 @@ Shared HTTP behavior can also be configured with:
 - `BOX_REQUEST_RETRY_TIMES` to retry transient request failures.
 - `BOX_REQUEST_RETRY_SLEEP` to control the delay between retries in milliseconds.
 
+## Laravel Filesystem
+
+This package registers a `box` storage driver so you can use Box through Laravel's `Storage` facade.
+
+Add a disk to your application's `config/filesystems.php`:
+
+```php
+'disks' => [
+    'box' => [
+        'driver' => 'box',
+        'folder_id' => env('BOX_FOLDER_ID', '0'),
+    ],
+],
+```
+
+Then use it like any other disk:
+
+```php
+use Illuminate\Support\Facades\Storage;
+
+// List files in a directory
+$files = Storage::disk('box')->files('directory');
+
+// Write and read files
+Storage::disk('box')->put('directory/file.txt', 'Contents');
+$contents = Storage::disk('box')->get('directory/file.txt');
+
+// File operations
+Storage::disk('box')->copy('old.txt', 'new.txt');
+Storage::disk('box')->move('old.txt', 'new-location/file.txt');
+Storage::disk('box')->delete('file.txt');
+```
+
 
 ## Usage:
 
