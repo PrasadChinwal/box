@@ -6,8 +6,10 @@ use Exception;
 use Illuminate\Contracts\Filesystem\FileNotFoundException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Client\Response as HttpResponse;
 use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 use PrasadChinwal\Box\Box;
 use PrasadChinwal\Box\Contracts\FileContract;
@@ -106,16 +108,17 @@ class BoxFile extends Box implements FileContract
     public function downloadFile(): BinaryFileResponse
     {
         $fileInfo = $this->info();
-        $response = $this->boxRequest()
-            ->sink(storage_path("/app/{$fileInfo->name}"))
-            ->get($this->endpoint.$this->id.'/content');
+        $localPath = storage_path("/app/{$fileInfo->name}");
+
+        $response = $this->downloadFromUrl($this->getDownloadUrl(), $localPath);
+
         if ($response->noContent()) {
             throw ResourceNotFoundException::make('The file information was not found.');
         }
 
         $this->ensureSuccessful($response, 'Could not download the Box file.');
 
-        return response()->download(storage_path("/app/{$fileInfo->name}"));
+        return response()->download($localPath, $fileInfo->name);
     }
 
     /**
@@ -125,7 +128,7 @@ class BoxFile extends Box implements FileContract
      */
     public function getDownloadUrl(): string
     {
-        $response = $this->boxRequest([
+        $response = $this->downloadRequest([
             'allow_redirects' => false,
         ])
             ->get($this->endpoint.$this->id.'/content');
@@ -146,8 +149,7 @@ class BoxFile extends Box implements FileContract
      */
     public function contents(): string
     {
-        $response = $this->boxRequest()
-            ->get($this->endpoint.$this->id.'/content');
+        $response = $this->downloadFromUrl($this->getDownloadUrl());
 
         if ($response->noContent()) {
             throw ResourceNotFoundException::make('The file information was not found.');
@@ -156,6 +158,17 @@ class BoxFile extends Box implements FileContract
         $this->ensureSuccessful($response, 'Could not read the Box file contents.');
 
         return $response->body();
+    }
+
+    protected function downloadFromUrl(string $url, ?string $sink = null): HttpResponse
+    {
+        $request = Http::timeout((int) config('box.request_timeout', 30));
+
+        if ($sink !== null) {
+            $request = $request->sink($sink);
+        }
+
+        return $request->get($url);
     }
 
     /**

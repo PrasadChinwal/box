@@ -14,6 +14,7 @@ use PrasadChinwal\Box\Exceptions\ApiException;
 use PrasadChinwal\Box\Exceptions\AuthenticationException;
 use PrasadChinwal\Box\Exceptions\BoxException;
 use PrasadChinwal\Box\Exceptions\ConfigurationException;
+use PrasadChinwal\Box\Exceptions\ResourceNotFoundException;
 use PrasadChinwal\Box\File\BoxFile;
 use PrasadChinwal\Box\Folder\BoxFolder;
 
@@ -169,6 +170,14 @@ class Box
         );
     }
 
+    protected function downloadRequest(array $options = []): PendingRequest
+    {
+        return $this->configureRequest(
+            Http::withToken($this->getAccessToken()),
+            $options
+        );
+    }
+
     protected function jsonRequest(array $options = []): PendingRequest
     {
         return $this->boxRequest($options)->asJson();
@@ -226,7 +235,7 @@ class Box
     {
         return match ($response->status()) {
             401, 403 => AuthenticationException::fromResponse($message, $response),
-            404 => \PrasadChinwal\Box\Exceptions\ResourceNotFoundException::fromResponse($message, $response),
+            404 => ResourceNotFoundException::fromResponse($message, $response),
             default => ApiException::fromResponse($message, $response),
         };
     }
@@ -252,7 +261,7 @@ class Box
      */
     public function file(): BoxFile
     {
-        return new BoxFile();
+        return new BoxFile;
     }
 
     /**
@@ -260,7 +269,7 @@ class Box
      */
     public function folder(): BoxFolder
     {
-        return new BoxFolder();
+        return new BoxFolder;
     }
 
     /**
@@ -268,7 +277,7 @@ class Box
      */
     public function user(): BoxUser
     {
-        return new BoxUser();
+        return new BoxUser;
     }
 
     /**
@@ -276,6 +285,6 @@ class Box
      */
     public function collaboration(): BoxCollaboration
     {
-        return new BoxCollaboration();
+        return new BoxCollaboration;
     }
 }
